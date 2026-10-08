@@ -1,0 +1,5 @@
+asset,fuel,kg_co2_per_mmbtu,source_note,source_workbook
+wti,crude oil,74.47,"EIA STEO CO2 emission factor, February 2026",eia_co2_vol_mass.xlsx
+natural_gas,natural gas,52.91,EIA Carbon Dioxide Emissions Coefficients,eia_co2_vol_mass.xlsx
+gasoline,finished motor gasoline,70.66,EIA Carbon Dioxide Emissions Coefficients,eia_co2_vol_mass.xlsx
+heating_oil,diesel and home heating fuel (distillate fuel oil),74.14,EIA Carbon Dioxide Emissions Coefficients,eia_co2_vol_mass.xlsx

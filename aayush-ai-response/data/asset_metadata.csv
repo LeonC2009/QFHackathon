@@ -1,0 +1,5 @@
+asset,instrument,unit,carbon_unit
+wti,"Cushing, OK Crude Oil Future Contract 1",USD/barrel,kg CO2/MMBtu
+natural_gas,Natural Gas Future Contract 1,USD/MMBtu,kg CO2/MMBtu
+gasoline,New York Harbor Reformulated RBOB Regular Gasoline Future Contract 1,USD/gallon,kg CO2/MMBtu
+heating_oil,New York Harbor No. 2 Heating Oil Future Contract 1,USD/gallon,kg CO2/MMBtu

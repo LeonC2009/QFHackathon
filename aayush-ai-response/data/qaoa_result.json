@@ -1,0 +1,52 @@
+{
+  "depth": 1,
+  "shots": 256,
+  "max_iter": 10,
+  "variable_order": [
+    "x_wti",
+    "x_natural_gas",
+    "x_gasoline",
+    "x_heating_oil",
+    "y_wti",
+    "y_natural_gas",
+    "y_gasoline",
+    "y_heating_oil"
+  ],
+  "best_bitstring": "01101001",
+  "best_qubo_cost": -79997.4531582509,
+  "best_objective": 2.546841749106534,
+  "carbon_exposure": 9238.304023053202,
+  "financial_risk": 0.007449658622434527,
+  "long": [
+    "natural_gas",
+    "gasoline"
+  ],
+  "short": [
+    "wti",
+    "heating_oil"
+  ],
+  "best_probability": 0.01171875,
+  "exact_classical_optimum": {
+    "bits": [
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      0,
+      1
+    ],
+    "objective": 2.546841749106534,
+    "carbon_exposure": 9238.304023053202,
+    "financial_risk": 0.007449658622434527,
+    "long": [
+      "natural_gas",
+      "gasoline"
+    ],
+    "short": [
+      "wti",
+      "heating_oil"
+    ]
+  }
+}
