@@ -1,0 +1,7 @@
+numpy
+pandas
+yfinance
+qrisp
+qiskit
+qiskit-aer
+scipy

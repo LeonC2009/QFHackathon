@@ -48,6 +48,8 @@ python qfhackathon_all_in_one.py hardware --dry-run
 python qfhackathon_all_in_one.py hardware --shots 1000
 ```
 
+For a separately runnable copy of this combined workflow, use the [all_in_one/](all_in_one/) folder. It includes its own `requirements.txt`, README, and launcher; the original separated implementation remains in the repository root.
+
 Download Yahoo Finance futures and run the classical pipeline:
 
 ```bash
