@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import errno
 import json
 import subprocess
 import sys
@@ -15,6 +16,10 @@ ROOT = Path(__file__).resolve().parent
 DASHBOARD = ROOT / "dashboard"
 DATA_DIR = ROOT / "data"
 RESULT_PATH = DATA_DIR / "dashboard_result.json"
+
+
+class DashboardHTTPServer(ThreadingHTTPServer):
+    allow_reuse_address = False
 
 
 def read_json(path: Path, default):
@@ -141,10 +146,20 @@ class DashboardHandler(BaseHTTPRequestHandler):
         return
 
 
+def create_server(port: int) -> DashboardHTTPServer:
+    try:
+        return DashboardHTTPServer(("127.0.0.1", port), DashboardHandler)
+    except OSError as error:
+        if error.errno != errno.EADDRINUSE or port == 0:
+            raise
+        print(f"Port {port} is already in use; selecting an available port.")
+        return DashboardHTTPServer(("127.0.0.1", 0), DashboardHandler)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Serve the standalone QFHackathon dashboard.")
     parser.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
-    with ThreadingHTTPServer(("127.0.0.1", args.port), DashboardHandler) as server:
+    with create_server(args.port) as server:
         print(f"Standalone dashboard running at http://{server.server_address[0]}:{server.server_address[1]}")
         server.serve_forever()
