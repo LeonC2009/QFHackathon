@@ -2,4 +2,6 @@
 __pycache__/
 *.py[cod]
 iqm_raw_results.json
+iqm_result.json
+local_qaoa_result.json
 .DS_Store

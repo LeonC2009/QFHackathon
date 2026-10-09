@@ -1,0 +1,15 @@
+{
+  "reps": 1,
+  "parameters": [
+    "\u03b2[0]",
+    "\u03b3[0]"
+  ],
+  "angles": [
+    0.7505071341932326,
+    0.49937675419921546
+  ],
+  "scaled_energy": -3.775207200221166,
+  "hamiltonian_scale": 25.852033939535993,
+  "success": true,
+  "iterations": 27
+}

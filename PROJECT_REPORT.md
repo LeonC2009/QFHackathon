@@ -47,6 +47,8 @@ Hydro and wind are excluded from the active optimization pipeline.
 - `qubo.py`: canonical QUBO, feasibility, antipode, brute-force, and Ising conversion helpers.
 - `run_pipeline.py`: complete local workflow and model export.
 - `qaoa_solver.py`: Qrisp QAOA adapter.
+- `optimize_angles.py`: local QAOA angle optimization for hardware runs.
+- `results.py`: shared QUBO-aware decoder for hardware measurements.
 - `run_on_quantum.py`: Qiskit-to-IQM Resonance/Garnet adapter.
 - `quantum/requirements.txt`: Qrisp, Qiskit, IQM, NumPy, SciPy, and Matplotlib dependencies.
 - `README.md`: setup and usage instructions.
@@ -127,10 +129,53 @@ Net carbon: approximately 9238.30 kg CO2
 ```
 
 This matches the exact classical optimum. The low feasible-shot rate indicates
-that the current fixed-angle, unconstrained QAOA circuit needs improvement
-before using hardware results as a reliable optimizer. The next hardware-stage
-improvements are angle optimization, a constraint-preserving mixer or stronger
-penalties, and automatic count decoding in `run_on_quantum.py`.
+that the current unconstrained QAOA circuit needs improvement before using
+hardware results as a reliable optimizer. Local angle optimization, automatic
+count decoding, and a Garnet dry-run mode are now implemented. A
+constraint-preserving mixer or stronger penalties remains the next modeling
+improvement.
+
+Generate optimized angles and validate the routed circuit without submitting a
+new job:
+
+```bash
+.venv/bin/python optimize_angles.py --reps 1 --maxiter 80
+.venv/bin/python run_on_quantum.py --dry-run --reps 1
+```
+
+The angles are saved to `aayush-ai-response/data/qaoa_angles.json`. A normal
+hardware run now writes both `iqm_raw_results.json` and the decoded
+`iqm_result.json`.
+
+### Improved Garnet Comparison
+
+The next run used locally optimized angles and a Qiskit XX+YY mixer that
+preserves the number of long and short selections in each block:
+
+```bash
+.venv/bin/python optimize_angles.py --reps 1 --maxiter 80
+.venv/bin/python run_on_quantum.py --shots 1000 --reps 1
+```
+
+The automatic decoder reported:
+
+```text
+Feasible probability: 4.1%
+Best feasible portfolio: gasoline, natural_gas long;
+                         wti, heating_oil short
+Best feasible energy: 1.979479
+```
+
+The best hardware portfolio still matches the exact classical optimum. The
+feasible rate improved from 2.5% with the unconstrained mixer to 4.1%. The
+remaining invalid samples are caused by the mixer preserving cardinality but
+not preventing the same asset from appearing in both blocks; exclusivity is
+still enforced by the QUBO and decoder.
+
+The same cardinality-preserving mixer produced a 14.1% feasible probability in
+the local Qrisp benchmark. An exact arbitrary-constraint oracle was prototyped
+but not adopted because it did not preserve the feasible subspace reliably in
+the installed Qrisp version.
 
 ## Current Classical Result
 

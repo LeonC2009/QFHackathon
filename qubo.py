@@ -25,8 +25,8 @@ def build_qubo(
     K: int,
     carbon_weight: float = 1.0,
     risk_weight: float = 1.0,
-    cardinality_weight: float = 10.0,
-    exclusivity_weight: float = 10.0,
+    cardinality_weight: float = 50.0,
+    exclusivity_weight: float = 50.0,
     tau: float = 0.0,
     lam: float = 0.0,
 ) -> tuple[np.ndarray, float]:
