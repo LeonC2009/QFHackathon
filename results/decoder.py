@@ -14,6 +14,7 @@ def rank_measurements(
     model: dict,
     long_count: int = 2,
     short_count: int | None = None,
+    reverse_bitstrings: bool = True,
 ) -> list[dict[str, object]]:
     """Decode Qiskit bitstrings and rank feasible samples by QUBO energy."""
     assets = list(model["assets"])
@@ -32,7 +33,8 @@ def rank_measurements(
         if len(bitstring) != 2 * asset_count or set(bitstring) - {"0", "1"}:
             continue
         # Qiskit displays the highest-index qubit first; the model uses q0 first.
-        bits = np.fromiter((int(bit) for bit in bitstring[::-1]), dtype=int)
+        ordered = bitstring[::-1] if reverse_bitstrings else bitstring
+        bits = np.fromiter((int(bit) for bit in ordered), dtype=int)
         energy = float(bits @ q @ bits + constant)
         feasible = is_feasible(bits, asset_count, long_count) and (
             int(bits[asset_count:].sum()) == short_count
@@ -58,8 +60,15 @@ def summarize_measurements(
     model: dict,
     long_count: int = 2,
     short_count: int | None = None,
+    reverse_bitstrings: bool = True,
 ) -> dict[str, object]:
-    ranked = rank_measurements(counts, model, long_count, short_count)
+    ranked = rank_measurements(
+        counts,
+        model,
+        long_count,
+        short_count,
+        reverse_bitstrings,
+    )
     total = sum(item["count"] for item in ranked)
     feasible = [item for item in ranked if item["feasible"]]
     return {

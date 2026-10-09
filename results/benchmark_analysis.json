@@ -1,0 +1,69 @@
+{
+  "source": "results/benchmark_summary.json",
+  "summary": {
+    "random_feasible": {
+      "instances": 36,
+      "median_gap": 0.0,
+      "median_p_opt": 0.349609375,
+      "median_feasible_rate": 1.0,
+      "median_tts99": 5481.043825546522,
+      "median_wall_seconds": 0.004193082975689322,
+      "gap_ci": [
+        0.0,
+        0.0
+      ],
+      "p_opt_ci": [
+        0.3401692708333333,
+        0.3489583333333333
+      ]
+    },
+    "random_raw": {
+      "instances": 36,
+      "median_gap": 0.0,
+      "median_p_opt": 0.11328125,
+      "median_feasible_rate": 0.373046875,
+      "median_tts99": 19611.557812528015,
+      "median_wall_seconds": 0.003635375003796071,
+      "gap_ci": [
+        0.0,
+        0.0
+      ],
+      "p_opt_ci": [
+        0.1130099826388889,
+        0.11767578125
+      ]
+    },
+    "anneal": {
+      "instances": 36,
+      "median_gap": 0.0,
+      "median_p_opt": 1.0,
+      "median_feasible_rate": 1.0,
+      "median_tts99": 1.0,
+      "median_wall_seconds": 0.027712625014828518,
+      "gap_ci": [
+        0.0,
+        0.0
+      ],
+      "p_opt_ci": [
+        1.0,
+        1.0
+      ]
+    },
+    "qaoa_sim": {
+      "instances": 12,
+      "median_gap": 0.0,
+      "median_p_opt": 0.7084148727984344,
+      "median_feasible_rate": 1.0000000000000004,
+      "median_tts99": 1913.179639935976,
+      "median_wall_seconds": 0.001309041486820206,
+      "gap_ci": [
+        0.0,
+        0.0
+      ],
+      "p_opt_ci": [
+        0.6042074363992173,
+        0.7084148727984344
+      ]
+    }
+  }
+}
