@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_DATA_DIR = HERE / "aayush-ai-response" / "data"
+DEFAULT_DATA_DIR = HERE / "project_data" / "data"
 POSITION_NOTIONAL_USD = 1_000.0
 MMBTU_PER_UNIT = {
     "wti": 5.8,

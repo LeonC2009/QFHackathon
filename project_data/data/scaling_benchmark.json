@@ -1,0 +1,72 @@
+{
+  "base_assets": [
+    "wti",
+    "gasoline",
+    "heating_oil",
+    "natural_gas"
+  ],
+  "base_data_source": "prepared EIA data",
+  "synthetic_expansion_warning": "Rows larger than the base universe are deterministic stress instances, not additional market observations.",
+  "results": [
+    {
+      "asset_count": 4,
+      "qubits": 8,
+      "long_count": 2,
+      "feasible_portfolios": 6,
+      "qubo_seconds": 0.000109,
+      "ising_terms": 36,
+      "benchmark_kind": "real_base_assets",
+      "exact_energy": 1.979479362726238,
+      "exact_seconds": 0.000568,
+      "exact_bitstring": "01011010"
+    },
+    {
+      "asset_count": 6,
+      "qubits": 12,
+      "long_count": 2,
+      "feasible_portfolios": 90,
+      "qubo_seconds": 0.000128,
+      "ising_terms": 78,
+      "benchmark_kind": "synthetic_stress_expansion",
+      "exact_energy": -0.07950365383555891,
+      "exact_seconds": 0.008764,
+      "exact_bitstring": "100001001010"
+    },
+    {
+      "asset_count": 8,
+      "qubits": 16,
+      "long_count": 2,
+      "feasible_portfolios": 420,
+      "qubo_seconds": 9.3e-05,
+      "ising_terms": 136,
+      "benchmark_kind": "synthetic_stress_expansion",
+      "exact_energy": -0.05553277382352917,
+      "exact_seconds": 0.140424,
+      "exact_bitstring": "0001010000000011"
+    },
+    {
+      "asset_count": 10,
+      "qubits": 20,
+      "long_count": 2,
+      "feasible_portfolios": 1260,
+      "qubo_seconds": 0.001424,
+      "ising_terms": 210,
+      "benchmark_kind": "synthetic_stress_expansion",
+      "exact_energy": null,
+      "exact_seconds": null,
+      "note": "Use MILP, simulated annealing, or hybrid QAOA for this size."
+    },
+    {
+      "asset_count": 12,
+      "qubits": 24,
+      "long_count": 3,
+      "feasible_portfolios": 18480,
+      "qubo_seconds": 8e-05,
+      "ising_terms": 300,
+      "benchmark_kind": "synthetic_stress_expansion",
+      "exact_energy": null,
+      "exact_seconds": null,
+      "note": "Use MILP, simulated annealing, or hybrid QAOA for this size."
+    }
+  ]
+}

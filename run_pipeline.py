@@ -10,7 +10,6 @@ import numpy as np
 
 from borsuk_ulam import borsuk_ulam_circle
 from qaoa_solver import run_qaoa
-from results import summarize_measurements
 from qubo import (
     antipode,
     brute_force,
@@ -72,7 +71,7 @@ def main() -> None:
         lam=0.5,
     )
     fields, couplings, ising_constant = qubo_to_ising(q, constant)
-    model_path = Path("aayush-ai-response/data/optimization_model.json")
+    model_path = Path("project_data/data/optimization_model.json")
     model_path.write_text(
         json.dumps(
             {
@@ -119,19 +118,6 @@ def main() -> None:
             if is_feasible(tuple(int(bit) for bit in bitstring), universe.n, args.k)
         )
         print(f"Qrisp feasible probability: {feasible_probability:.3f}")
-        local_summary = summarize_measurements(
-            counts,
-            json.loads(model_path.read_text(encoding="utf-8")),
-            long_count=args.k,
-            short_count=args.k,
-            reverse_bitstrings=False,
-        )
-        local_summary["total_shots"] = args.shots
-        local_summary["feasible_shots"] = local_summary["feasible_probability"] * args.shots
-        Path("local_qaoa_result.json").write_text(
-            json.dumps(local_summary, indent=2) + "\n",
-            encoding="utf-8",
-        )
         ranked = sorted(
             (
                 qubo_energy(tuple(int(bit) for bit in bitstring), q, constant),

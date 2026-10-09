@@ -28,6 +28,7 @@
           <p class="hero-text">A data-to-quantum workflow balancing emissions, covariance risk, and long/short constraints across four EIA energy futures.</p>
           <div class="hero-actions">
             <button class="primary-button" id="runButton"><span>▶</span> Run local QAOA</button>
+            <button class="secondary-button" id="resonanceButton"><span>↗</span> Submit to Garnet</button>
             <span class="run-status" id="runStatus">Ready with latest hardware result</span>
           </div>
         </div>
@@ -102,6 +103,12 @@
           <p>The long/short antipode is checked before QAOA. Carbon balance and covariance become one Ising energy landscape, then the hardware samples candidate hedges.</p>
           <div class="method-note"><span>✓</span><b>Borsuk-inspired pair verified</b><small>long ↔ short swap has equal symmetric energy</small></div>
         </article>
+      </section>
+
+      <section class="scaling-panel">
+        <div class="panel-head"><div><p class="kicker">Scaling runway</p><h3>When the search starts to stretch</h3></div><span class="muted">real base + stress expansion</span></div>
+        <div class="scaling-table-head"><span>assets</span><span>qubits</span><span>search space</span><span>feasible portfolios</span><span>benchmark</span></div>
+        <div id="scalingRows"></div>
       </section>
     </main>
 

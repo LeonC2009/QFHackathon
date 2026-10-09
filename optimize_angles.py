@@ -20,8 +20,8 @@ from run_on_quantum import (
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=Path, default=Path("aayush-ai-response/data/optimization_model.json"))
-    parser.add_argument("--output", type=Path, default=Path("aayush-ai-response/data/qaoa_angles.json"))
+    parser.add_argument("--model", type=Path, default=Path("project_data/data/optimization_model.json"))
+    parser.add_argument("--output", type=Path, default=Path("project_data/data/qaoa_angles.json"))
     parser.add_argument("--reps", type=int, default=1)
     parser.add_argument("--maxiter", type=int, default=80)
     args = parser.parse_args()

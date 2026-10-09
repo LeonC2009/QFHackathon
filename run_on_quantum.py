@@ -18,8 +18,8 @@ from iqm.qiskit_iqm import IQMProvider
 from results import summarize_measurements
 
 
-DEFAULT_MODEL = Path("aayush-ai-response/data/optimization_model.json")
-DEFAULT_ANGLES = Path("aayush-ai-response/data/qaoa_angles.json")
+DEFAULT_MODEL = Path("project_data/data/optimization_model.json")
+DEFAULT_ANGLES = Path("project_data/data/qaoa_angles.json")
 
 
 def load_hamiltonian(model_path: Path) -> tuple[SparsePauliOp, dict]:

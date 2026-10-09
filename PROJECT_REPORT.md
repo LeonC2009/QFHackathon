@@ -143,7 +143,7 @@ new job:
 .venv/bin/python run_on_quantum.py --dry-run --reps 1
 ```
 
-The angles are saved to `aayush-ai-response/data/qaoa_angles.json`. A normal
+The angles are saved to `project_data/data/qaoa_angles.json`. A normal
 hardware run now writes both `iqm_raw_results.json` and the decoded
 `iqm_result.json`.
 
@@ -171,11 +171,6 @@ feasible rate improved from 2.5% with the unconstrained mixer to 4.1%. The
 remaining invalid samples are caused by the mixer preserving cardinality but
 not preventing the same asset from appearing in both blocks; exclusivity is
 still enforced by the QUBO and decoder.
-
-The same cardinality-preserving mixer produced a 14.1% feasible probability in
-the local Qrisp benchmark. An exact arbitrary-constraint oracle was prototyped
-but not adopted because it did not preserve the feasible subspace reliably in
-the installed Qrisp version.
 
 ## Current Classical Result
 
@@ -240,7 +235,7 @@ Run local Qrisp QAOA:
 The pipeline writes the canonical model to:
 
 ```text
-aayush-ai-response/data/optimization_model.json
+project_data/data/optimization_model.json
 ```
 
 ## Running On IQM Garnet
@@ -248,7 +243,7 @@ aayush-ai-response/data/optimization_model.json
 After rotating the exposed credential, set the new values directly in a local terminal:
 
 ```bash
-export IQM_TOKEN='new-token'
+export RESONANCE_API_TOKEN='new-token'
 export IQM_URL='https://resonance.iqm.tech'
 export IQM_BACKEND='garnet'
 ```

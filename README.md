@@ -1,72 +1,121 @@
 # Quantum Topological Carbon Hedging
 
-This repository builds a long/short carbon-hedging portfolio from four EIA energy futures: WTI crude oil, natural gas, RBOB gasoline, and heating oil. Hydro and wind are excluded from the active pipeline.
+A research and presentation prototype that turns EIA energy-futures data into a constrained long/short QUBO, converts it to an Ising Hamiltonian, evaluates it classically and with Qrisp, and can submit the same model to IQM Resonance/Garnet.
 
-## Active workflow
+Hydro and wind are excluded from the active universe. The current real-data universe is WTI crude oil, natural gas, RBOB gasoline, and heating oil.
 
-```text
-EIA prices + emissions -> returns/covariance -> constrained QUBO
--> Ising -> Borsuk-inspired antipode check -> Qrisp QAOA
--> IQM Garnet -> decoded portfolio result
-```
+## Quick Start
 
-The Borsuk-Ulam theorem motivates the long/short swap symmetry. It does not prove that a finite discrete portfolio is exactly carbon neutral; the QUBO carbon-balance term is what drives the search.
-
-## Local pipeline
+### macOS/Linux
 
 ```bash
-python3 -m pip install -r quantum/requirements.txt
-python3 run_pipeline.py
-python3 run_pipeline.py --qaoa --p 1 --steps 20 --shots 512
-python3 optimize_angles.py --reps 1 --maxiter 80
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r quantum/requirements.txt
+python run_pipeline.py
 ```
 
-The pipeline reads prepared EIA files under `aayush-ai-response/data/` and writes the canonical model to `aayush-ai-response/data/optimization_model.json`.
+### Windows PowerShell
 
-## IQM Garnet
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r quantum\requirements.txt
+python run_pipeline.py
+```
 
-Set the token in your shell. It is never stored in source control:
+Run local Qrisp:
 
 ```bash
-export RESONANCE_API_TOKEN='token-from-resonance-dashboard'
+python run_pipeline.py --qaoa --p 1 --steps 20 --shots 512
+```
+
+Optimize hardware angles and validate without submitting:
+
+```bash
+python optimize_angles.py --reps 1 --maxiter 80
+python run_on_quantum.py --dry-run --reps 1
+```
+
+## IQM Resonance/Garnet
+
+The official IQM Qiskit adapter documentation recommends `iqm-client[qiskit]`, a token passed to `IQMProvider`, a selected quantum computer, Qiskit transpilation, and `backend.run()`.
+
+Set credentials in the environment, never in source files:
+
+macOS/Linux:
+
+```bash
+export RESONANCE_API_TOKEN='paste-token-in-your-terminal'
 export IQM_URL='https://resonance.iqm.tech'
 export IQM_BACKEND='garnet'
 ```
 
-Validate routing without spending credits:
+Windows PowerShell:
 
-```bash
-python3 run_on_quantum.py --dry-run --reps 1
+```powershell
+$env:RESONANCE_API_TOKEN = "paste-token-in-your-terminal"
+$env:IQM_URL = "https://resonance.iqm.tech"
+$env:IQM_BACKEND = "garnet"
 ```
 
-Submit a hardware run only when ready:
+Windows Command Prompt:
 
-```bash
-python3 run_on_quantum.py --shots 1000 --reps 1
+```bat
+set RESONANCE_API_TOKEN=paste-token-in-your-terminal
+set IQM_URL=https://resonance.iqm.tech
+set IQM_BACKEND=garnet
 ```
 
-The runner saves raw counts to `iqm_raw_results.json` and decoded results to `iqm_result.json`.
-
-## Presentation dashboard
-
-Start the local dashboard:
+Test routing without using credits:
 
 ```bash
-python3 dashboard_server.py
+python run_on_quantum.py --dry-run --reps 1
 ```
 
-Then open <http://127.0.0.1:8765>. The dashboard reads the current model and hardware result, visualizes the portfolio and feasibility rate, and can run a local Qrisp simulation with the **Run local QAOA** button.
+Submit a real 1,000-shot job only after the dry run succeeds:
 
-## Layout
+```bash
+python run_on_quantum.py --shots 1000 --reps 1
+```
 
+The code accepts `RESONANCE_API_TOKEN` first and `IQM_TOKEN` as a compatibility fallback. Regenerating an IQM token invalidates the previous token. Never commit or paste a real token into Markdown, source code, or chat.
+
+## Presentation Dashboard
+
+```bash
+python dashboard_server.py
+```
+
+Open <http://127.0.0.1:8765>.
+
+The dashboard visualizes the latest decoded portfolio, carbon exposure, feasibility, QUBO score, asset emissions, scaling benchmark, and local QAOA results. The separate **Submit to Garnet** control asks for confirmation before consuming Resonance credits.
+
+## Project Map
+
+- `universe.py`: loads prepared EIA returns, covariance, expected returns, and position carbon exposure.
+- `qubo.py`: builds the constrained QUBO, converts to Ising, checks feasibility, and evaluates antipodes.
+- `run_pipeline.py`: canonical data-to-QAOA workflow and model export.
+- `qaoa_solver.py`: Qrisp simulator with a cardinality-preserving portfolio mixer.
+- `optimize_angles.py`: local Qiskit angle optimization for hardware runs.
+- `run_on_quantum.py`: Qiskit/IQM Resonance/Garnet submission path.
+- `results.py`: shared hardware count decoder and feasible-portfolio ranking.
+- `scaling_benchmark.py`: real-base plus clearly labeled synthetic stress-size benchmark.
 - `dashboard/`: presentation frontend.
-- `dashboard_server.py`: local static server and local-QAOA API.
-- `run_pipeline.py`: canonical end-to-end workflow.
-- `universe.py`: EIA data and position-level emissions loader.
-- `qubo.py`: QUBO, Ising, feasibility, and antipode helpers.
-- `qaoa_solver.py`: Qrisp simulator adapter.
-- `optimize_angles.py`: local QAOA angle optimization.
-- `results.py`: shared hardware measurement decoder.
-- `run_on_quantum.py`: IQM Resonance/Garnet adapter.
-- `aayush-ai-response/data/`: prepared inputs and generated model artifacts.
+- `dashboard_server.py`: local dashboard server and execution API.
+- `project_data/`: generic project data, prepared EIA files, generated model, and angle artifacts.
+- `PROJECT_STATE.md`: detailed architecture, results, setup, platform notes, and limitations.
 - `archive/`: superseded scripts and reference material.
+
+## Current Reference Result
+
+The best validated portfolio is:
+
+```text
+Long:  gasoline, natural_gas
+Short: wti, heating_oil
+```
+
+The current hardware workflow finds the same portfolio as exact classical enumeration, but hardware feasibility remains lower than local simulation. See [PROJECT_STATE.md](PROJECT_STATE.md) for the detailed state and next work.

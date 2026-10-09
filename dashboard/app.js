@@ -34,6 +34,17 @@ function render(state) {
       <b><i style="width:${Math.max(asset.carbon / maxCarbon * 100, 4)}%"></i></b>
       <span class="asset-value">${formatNumber(asset.carbon)} kg</span>
     </div>`).join('');
+
+  const scaling = state.scaling || [];
+  const maxFeasible = Math.max(...scaling.map((row) => row.feasible_portfolios || 0), 1);
+  $('#scalingRows').innerHTML = scaling.map((row) => `
+    <div class="scaling-row">
+      <strong>${row.asset_count}</strong>
+      <span>${row.qubits} q</span>
+      <b><i style="width:${Math.max((row.feasible_portfolios / maxFeasible) * 100, 4)}%"></i></b>
+      <span class="scaling-count">${formatNumber(row.feasible_portfolios)}</span>
+      <em class="${row.benchmark_kind === 'real_base_assets' ? 'real' : ''}">${row.benchmark_kind === 'real_base_assets' ? 'EIA base' : 'stress'}</em>
+    </div>`).join('');
 }
 
 async function loadState() {
@@ -73,6 +84,29 @@ $('#runButton').addEventListener('click', async () => {
   } finally {
     button.disabled = false;
     button.innerHTML = '<span>▶</span> Run local QAOA';
+  }
+});
+
+$('#resonanceButton').addEventListener('click', async () => {
+  if (!window.confirm('Submit 1,000 shots to IQM Garnet? This uses Resonance credits.')) return;
+  const button = $('#resonanceButton');
+  const status = $('#runStatus');
+  button.disabled = true;
+  button.innerHTML = '<span>◌</span> Submitting to Garnet';
+  status.textContent = 'Waiting for IQM Resonance…';
+  try {
+    const response = await fetch('/api/run-resonance', { method: 'POST' });
+    const payload = await response.json();
+    if (!payload.ok) throw new Error(payload.output || 'Resonance submission failed');
+    render(payload.state);
+    status.textContent = 'Garnet result loaded';
+    toast('IQM Garnet result loaded');
+  } catch (error) {
+    status.textContent = error.message;
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = '<span>↗</span> Submit to Garnet';
   }
 });
 
