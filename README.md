@@ -7,8 +7,11 @@ The active path is:
 ```text
 EIA prices + emissions -> daily returns/covariance -> constrained QUBO
 -> exact Ising conversion -> Borsuk-inspired antipode check -> Qrisp QAOA
--> optional IQM Resonance/Garnet submission
+The token is never stored in source control. Start with small shot counts while validating the circuit; IQM Resonance credits are consumed by hardware jobs.
+
+## API Token
 ```
+export RESONANCE_API_TOKEN='token-from-resonance-dashboard'
 
 The Borsuk-Ulam theorem motivates the long/short swap symmetry. It does not prove that a finite discrete portfolio is exactly carbon neutral. The carbon balance penalty in the QUBO is the mechanism that searches for a low-exposure portfolio.
 
@@ -27,7 +30,7 @@ The pipeline reads prepared EIA files under `aayush-ai-response/data/` and write
 The IQM script uses Qiskit as the circuit/Hamiltonian bridge to IQM Resonance. It submits the same Ising fields and couplings produced by the pipeline; it does not use PennyLane.
 
 ```bash
-export IQM_TOKEN='token-from-resonance-dashboard'
+export RESONANCE_API_TOKEN='token-from-resonance-dashboard'
 export IQM_URL='https://resonance.iqm.tech'
 export IQM_BACKEND='garnet'
 python3 run_on_quantum.py --shots 1000

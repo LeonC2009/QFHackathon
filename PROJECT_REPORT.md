@@ -9,6 +9,7 @@ A Resonance credential was pasted into chat. Treat it as exposed and revoke or r
 The code reads credentials only from environment variables:
 
 ```bash
+RESONANCE_API_TOKEN
 IQM_TOKEN
 IQM_URL
 IQM_BACKEND
@@ -81,6 +82,55 @@ The local Qrisp pipeline was executed with:
 ```
 
 No IQM hardware job was submitted, so no Resonance credits were consumed.
+
+### Latest IQM Connectivity Test
+
+The authenticated, metadata-only Resonance test was run from the repository
+environment using `RESONANCE_API_TOKEN`. It successfully authenticated and
+resolved the Garnet backend:
+
+```text
+IQM Resonance authentication and Garnet backend lookup: OK
+Backend: garnet
+No circuit submitted
+```
+
+This result was printed by the terminal test and is recorded here. No
+measurement counts were generated because submitting a circuit was intentionally
+not performed.
+
+### IQM Garnet Hardware Run
+
+The first hardware submission was completed successfully with:
+
+```bash
+.venv/bin/python run_on_quantum.py --shots 1000
+```
+
+The raw counts were saved locally to `iqm_raw_results.json` (ignored by Git).
+The counts were decoded using the canonical QUBO and feasibility rules:
+
+```text
+Total decoded shots: 1000
+Distinct bitstrings: 238
+Feasible shots: 25 (2.5%)
+```
+
+Best feasible hardware sample:
+
+```text
+Probability: approximately 0.2%
+Energy: 1.979479
+Long: gasoline, natural_gas
+Short: wti, heating_oil
+Net carbon: approximately 9238.30 kg CO2
+```
+
+This matches the exact classical optimum. The low feasible-shot rate indicates
+that the current fixed-angle, unconstrained QAOA circuit needs improvement
+before using hardware results as a reliable optimizer. The next hardware-stage
+improvements are angle optimization, a constraint-preserving mixer or stronger
+penalties, and automatic count decoding in `run_on_quantum.py`.
 
 ## Current Classical Result
 

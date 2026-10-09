@@ -1,6 +1,6 @@
 """Submit the canonical Ising Hamiltonian to IQM Resonance/Garnet.
 
-Set IQM_TOKEN in the shell. The token is never stored in the repository.
+Set RESONANCE_API_TOKEN in the shell. IQM_TOKEN remains supported as a fallback.
 """
 
 from __future__ import annotations
@@ -49,14 +49,14 @@ def main() -> None:
     parser.add_argument("--shots", type=int, default=1000)
     args = parser.parse_args()
 
-    token = os.environ.get("IQM_TOKEN")
+    token = os.environ.get("RESONANCE_API_TOKEN") or os.environ.get("IQM_TOKEN")
     if not token:
-        raise SystemExit("Set IQM_TOKEN in the shell before submitting to IQM Resonance")
+        raise SystemExit("Set RESONANCE_API_TOKEN in the shell before using IQM Resonance")
     url = os.environ.get("IQM_URL", "https://resonance.iqm.tech")
     backend_name = os.environ.get("IQM_BACKEND", "garnet")
 
     hamiltonian, model = load_hamiltonian(args.model)
-    provider = IQMProvider(url, token=token)
+    provider = IQMProvider(url, quantum_computer=backend_name, token=token)
     backend = provider.get_backend(backend_name)
     circuit = QAOAAnsatz(cost_operator=hamiltonian, reps=args.reps)
     circuit.measure_all()
