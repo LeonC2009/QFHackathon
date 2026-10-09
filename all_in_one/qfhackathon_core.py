@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import json
 import logging
 import os
-import subprocess
 import sys
 import threading
 import time
@@ -165,6 +165,19 @@ def describe(bits, u):
     return f"long={longs} short={shorts} net_carbon={net:.2f}"
 
 
+def qubo_to_ising(q, constant=0.0):
+    q = (np.asarray(q, dtype=float) + np.asarray(q, dtype=float).T) / 2
+    ones = np.ones(q.shape[0])
+    fields = -0.5 * q @ ones
+    couplings = {
+        (i, j): 0.5 * q[i, j]
+        for i in range(q.shape[0])
+        for j in range(i + 1, q.shape[0])
+        if abs(q[i, j]) > 1e-12
+    }
+    return fields, couplings, float(constant + 0.25 * (ones @ q @ ones + np.trace(q)))
+
+
 @property
 def _n(u):
     return len(u.tickers)
@@ -231,18 +244,74 @@ def run_local(args):
 
 
 def run_resonance(args):
-    """Delegate hardware execution to the original adapter when available."""
-    adapter = ROOT.parent / "run_on_quantum.py"
-    if not adapter.exists():
-        raise RuntimeError("Resonance requires the original root run_on_quantum.py adapter")
+    """Route and optionally submit the standalone model directly to IQM."""
+    from qiskit import QuantumCircuit, transpile
+    from qiskit.circuit.library import QAOAAnsatz
+    from qiskit.quantum_info import SparsePauliOp
+    from iqm.qiskit_iqm import IQMProvider
+
     token_present = bool(os.environ.get("RESONANCE_API_TOKEN") or os.environ.get("IQM_TOKEN"))
     if not token_present:
         raise RuntimeError("Set RESONANCE_API_TOKEN or IQM_TOKEN before using resonance")
-    command = [sys.executable, str(adapter), "--shots", str(args.shots), "--reps", str(args.reps)]
+    if not (DATA_DIR / "metadata.csv").exists():
+        LOGGER.info("No local Yahoo dataset found; downloading the default window first")
+        download("2018-01-01")
+    universe = load(args.n)
+    q, constant = build_qubo(universe, args.k)
+    fields, couplings, ising_constant = qubo_to_ising(q, constant)
+    width = 2 * universe.n
+    terms = []
+    for index, coefficient in enumerate(fields):
+        if coefficient:
+            word = ["I"] * width
+            word[width - 1 - index] = "Z"
+            terms.append(("".join(word), coefficient))
+    for (first, second), coefficient in couplings.items():
+        if coefficient:
+            word = ["I"] * width
+            word[width - 1 - first] = "Z"
+            word[width - 1 - second] = "Z"
+            terms.append(("".join(word), coefficient))
+    cost = SparsePauliOp.from_list(terms)
+    mixer_terms = []
+    for start in (0, universe.n):
+        for offset in range(universe.n):
+            first = start + offset
+            second = start + ((offset + 1) % universe.n)
+            if first == second:
+                continue
+            for pauli in ("X", "Y"):
+                word = ["I"] * width
+                word[width - 1 - first] = pauli
+                word[width - 1 - second] = pauli
+                mixer_terms.append(("".join(word), 0.5))
+    mixer = SparsePauliOp.from_list(mixer_terms).simplify()
+    initial = QuantumCircuit(width)
+    for index in range(args.k):
+        initial.x(index)
+        initial.x(universe.n + index)
+    provider = IQMProvider(
+        os.environ.get("IQM_URL", "https://resonance.iqm.tech"),
+        quantum_computer=os.environ.get("IQM_BACKEND", "garnet"),
+        token=os.environ.get("RESONANCE_API_TOKEN") or os.environ.get("IQM_TOKEN"),
+    )
+    backend_name = os.environ.get("IQM_BACKEND", "garnet")
+    backend = provider.get_backend(backend_name)
+    circuit = QAOAAnsatz(cost_operator=cost, mixer_operator=mixer, initial_state=initial, reps=args.reps)
+    circuit.measure_all()
+    with progress("Transpiling and binding IQM circuit"):
+        transpiled = transpile(circuit, backend=backend, optimization_level=3)
+        angles = [0.5] * len(transpiled.parameters)
+        bound = transpiled.assign_parameters(dict(zip(transpiled.parameters, angles)))
+    LOGGER.info("Garnet circuit ready: %d qubits, %d angles", width, len(angles))
     if args.dry_run:
-        command.append("--dry-run")
+        LOGGER.info("Resonance dry run passed; no shots submitted")
+        return
     with progress("Running IQM Resonance/Garnet"):
-        subprocess.run(command, cwd=ROOT.parent, check=True)
+        counts = backend.run(bound, shots=args.shots).result().get_counts()
+    output_path = DATA_DIR / "resonance_counts.json"
+    output_path.write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
+    LOGGER.info("Saved hardware counts to %s", output_path)
 
 
 def add_run_options(parser):
@@ -269,6 +338,8 @@ def main():
     resonance_parser.add_argument("--dry-run", action="store_true")
     resonance_parser.add_argument("--shots", type=int, default=1000)
     resonance_parser.add_argument("--reps", type=int, default=1)
+    resonance_parser.add_argument("--n", type=int, default=5)
+    resonance_parser.add_argument("--k", type=int, default=2)
     args = parser.parse_args()
     configure_logging(args.verbose)
     if args.command == "download":
