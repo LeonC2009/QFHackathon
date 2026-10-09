@@ -1,95 +1,75 @@
-# ==========================================
-# 1. INSTALL DEPENDENCIES IN COLAB
-# ==========================================
-# Install the exact packages required to communicate with IQM Resonance
-#!pip install "iqm-client[qiskit]" qiskit numpy scipy -q
+"""Submit the canonical Ising Hamiltonian to IQM Resonance/Garnet.
 
-import os
+Set IQM_TOKEN in the shell. The token is never stored in the repository.
+"""
+
+from __future__ import annotations
+
+import argparse
 import json
-import numpy as np
+import os
+from pathlib import Path
+
+from qiskit import transpile
 from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
-from qiskit import transpile
 from iqm.qiskit_iqm import IQMProvider
 
-# ==========================================
-# 2. SET UP IQM RESONANCE CREDENTIALS
-# ==========================================
-# Paste your token from the IQM Resonance Dashboard here
-IQM_TOKEN = "YOUR_IQM_RESONANCE_TOKEN"
-IQM_URL = "https://resonance.iqm.tech"
 
-try:
-    provider = IQMProvider(IQM_URL, token=IQM_TOKEN)
-    backend = provider.get_backend("garnet")
-    print(f"✅ Successfully connected to IQM Resonance QPU: {backend.name}")
-except Exception as e:
-    print(f"❌ Connection failed! Verify your token credential string: {e}")
-    raise e
+DEFAULT_MODEL = Path("aayush-ai-response/data/optimization_model.json")
 
-# ==========================================
-# 3. LOAD THE NPZ FILE AND BUILD H AND J
-# ==========================================
-# This reads the ising.npz file you uploaded into the Colab file tree
-if not os.path.exists("ising.npz"):
-    raise FileNotFoundError("Could not find 'ising.npz' in the Colab file list. Please drag-and-drop it into the files panel.")
 
-data = np.load("ising.npz")
-h, J, offset = data['h'], data['J'], data['offset']
-n = len(h)
+def load_hamiltonian(model_path: Path) -> tuple[SparsePauliOp, dict]:
+    model = json.loads(model_path.read_text(encoding="utf-8"))
+    fields = model["ising_fields"]
+    couplings = {
+        tuple(int(index) for index in key.split(",")): value
+        for key, value in model["ising_couplings"].items()
+    }
+    width = len(fields)
+    terms = []
+    for index, coefficient in enumerate(fields):
+        if coefficient:
+            pauli = ["I"] * width
+            pauli[width - 1 - index] = "Z"
+            terms.append(("".join(pauli), coefficient))
+    for (i, j), coefficient in couplings.items():
+        if coefficient:
+            pauli = ["I"] * width
+            pauli[width - 1 - i] = "Z"
+            pauli[width - 1 - j] = "Z"
+            terms.append(("".join(pauli), coefficient))
+    return SparsePauliOp.from_list(terms), model
 
-# Convert h and J matrix into Qiskit's SparsePauliOp
-pauli_list = []
-# Linear terms (h_i * Z_i)
-for i in range(n):
-    if abs(h[i]) > 1e-6:
-        op_str = ["I"] * n
-        op_str[i] = "Z"
-        pauli_list.append(("".join(op_str), h[i]))
 
-# Quadratic terms (J_ij * Z_i * Z_j)
-for i in range(n):
-    for j in range(i + 1, n):
-        if abs(J[i, j]) > 1e-6:
-            op_str = ["I"] * n
-            op_str[i] = "Z"
-            op_str[j] = "Z"
-            pauli_list.append(("".join(op_str), J[i, j]))
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    parser.add_argument("--reps", type=int, default=1)
+    parser.add_argument("--shots", type=int, default=1000)
+    args = parser.parse_args()
 
-hamiltonian = SparsePauliOp.from_list(pauli_list)
+    token = os.environ.get("IQM_TOKEN")
+    if not token:
+        raise SystemExit("Set IQM_TOKEN in the shell before submitting to IQM Resonance")
+    url = os.environ.get("IQM_URL", "https://resonance.iqm.tech")
+    backend_name = os.environ.get("IQM_BACKEND", "garnet")
 
-# ==========================================
-# 4. CONSTRUCT AND TRANSPILE THE QAOA CIRCUIT
-# ==========================================
-reps = 1
-qaoa_circuit = QAOAAnsatz(cost_operator=hamiltonian, reps=reps)
-qaoa_circuit.measure_all()
+    hamiltonian, model = load_hamiltonian(args.model)
+    provider = IQMProvider(url, token=token)
+    backend = provider.get_backend(backend_name)
+    circuit = QAOAAnsatz(cost_operator=hamiltonian, reps=args.reps)
+    circuit.measure_all()
+    transpiled = transpile(circuit, backend=backend, optimization_level=3)
+    angles = [0.5] * len(transpiled.parameters)
+    bound = transpiled.assign_parameters(dict(zip(transpiled.parameters, angles)))
 
-print("Routing and transpiling the asset interaction grid to match Garnet's hardware architecture...")
-transpiled_circuit = transpile(qaoa_circuit, backend=backend, optimization_level=3)
+    print(f"Submitting {len(model['assets']) * 2} qubits to {backend.name}...")
+    result = backend.run(bound, shots=args.shots).result()
+    counts = result.get_counts()
+    Path("iqm_raw_results.json").write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
+    print("Saved IQM counts to iqm_raw_results.json")
 
-# ==========================================
-# 5. SUBMIT TO THE PHYSICAL HARDWARE QUEUE
-# ==========================================
-# Bind sample trial parameters (gamma=0.5, beta=0.5) for a quick optimization pass
-initial_angles = [0.5] * (2 * reps)
-parameter_binds = dict(zip(qaoa_circuit.parameters, initial_angles))
-bound_circuit = transpiled_circuit.assign_parameters(parameter_binds)
 
-print(f"Uploading job queue packet to {backend.name}...")
-# 1000 or up to 20,000 shots depending on your time constraints
-job = backend.run(bound_circuit, shots=1000) 
-result = job.result()
-counts = result.get_counts()
-
-# Calculate shot probabilities
-total_shots = sum(counts.values())
-probabilities = {bitstr: count / total_shots for bitstr, count in counts.items()}
-
-# ==========================================
-# 6. EXPORT THE GENERATED DATA
-# ==========================================
-with open("iqm_raw_results.json", "w") as f:
-    json.dump(probabilities, f, indent=4)
-
-print("🎉 Job complete! Results saved to 'iqm_raw_results.json' inside your Colab file folder.")
+if __name__ == "__main__":
+    main()

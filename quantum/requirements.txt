@@ -2,10 +2,8 @@
 # Lower bounds only: pip resolves the latest compatible versions. check_aer.py prints what you got.
 qiskit>=1.2
 qiskit-aer>=0.15
+qrisp
+iqm-client[qiskit]
 numpy
 scipy
 matplotlib
-
-# Only needed while antipodal_qaoa.py still runs its QAOA step in PennyLane.
-# Uncomment if you want that path too; the Aer port doesn't need it.
-# pennylane

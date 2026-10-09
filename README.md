@@ -1,21 +1,46 @@
-# QFHackathon
-Title: Quantum Topological Carbon Hedging for Energy Futures
+# Quantum Topological Carbon Hedging
 
-Summary: Applying the Borsuk-Ulam theorem to optimization, mapping antipodal carbon emission vectors to trade carbon neutral energy futures trades
+This repository builds a long/short carbon-hedging portfolio from four EIA energy futures: WTI crude oil, natural gas, RBOB gasoline, and heating oil. Hydro and wind assets are excluded from the active pipeline.
 
-Problem: The submission aims to solve the ever pertinent challenge of carbon neutrality. Carbon emission rates are constantly shifting and making the ESG scores that are reported a rough average rather than an accurate reporting of the current state of affairs. A portfolio that starts carbon neutral will drift out of compliance as underlying energy production variables change. Additionally, institutional investors are often forced to choose between tracking market returns and meeting ESG requirements, so theres a lack of real time trading algorithms that are capable of balancing energy futures to eliminate net carbon exposure without destroying financial returns or introducing market directional risk.
+The active path is:
 
-Regarding quantum computing, finding antipodal points on earth are incredibly intensive to compute as the binary search for a {0, 1} pair out of countless pairs is very narrow and doesn't allow for leeway. Classical continuous optimization models (mean variance) struggles with the huge search space.
+```text
+EIA prices + emissions -> daily returns/covariance -> constrained QUBO
+-> exact Ising conversion -> Borsuk-inspired antipode check -> Qrisp QAOA
+-> optional IQM Resonance/Garnet submission
+```
 
-Solution: The Borsuk-Ulam theorem guarantees that for any continuous sphere mapping has at least one pair of antipodal (opposite) points that yield the same value. When applied to carbon emission rates and energy price vectors onto some manifold. Borsuk-Ulam proves that for every carbon vector in the asset universe, an exact and opposite hedging pair exists that zeroes out the net carbon exposure and eliminates market direction risk. In regards to the average (instead of instantaneous information), when using a pairs trading model the usually laggy energy market prices can be offset by tracking relative carbon-to-price discrepancies across correlated energy contracts, essentially if we trade the spread then the information gap is sowed shut. Taking offsetting longs in low carbon contracts and shorts in high carbon contracts captures yield from spread while keeping the net portfolio carbon at zero.
+The Borsuk-Ulam theorem motivates the long/short swap symmetry. It does not prove that a finite discrete portfolio is exactly carbon neutral. The carbon balance penalty in the QUBO is the mechanism that searches for a low-exposure portfolio.
 
-Finding the exact discrete antipodal pair out of N energy futures requires an asymptotic space of O(2^N) which scales too fast for classical computers to efficiently calculate them. Formatting this instead as a quadratic unconstrained binary optimization problem allows us to use quantum annealers and QAOA algorithms to map the space onto a physical energy landscape and identify the global minimum aka the exact hedge we need to execute this in an almost infinitesimally smaller amount of time.
+## Run locally
 
-Desc: Standard portfolio hedges try to flatten market risk. We try to flatten the carbon risk instead. For every long position in a low carbon energy future like wind or hydro, we pair it with a short position in a high carbon like oil or coal, sized so the portfolio's net carbon exposure converges to 0 regardless of which way energy prices move. Picking exactly the right pairs out of a universe of candidates is exactly what introduces this combinatorial problem which makes QUBO and quantum computing exactly the right fit for such a goal.
+```bash
+python3 -m pip install -r quantum/requirements.txt
+python3 run_pipeline.py
+python3 run_pipeline.py --qaoa --p 1 --steps 10 --shots 512
+```
 
-The Borsuk-Ulam theorem states that for any continuous function f from S^n to R^n there exists a point x in S^n such that f(x) = f(-x). It guarantees the 2 values are equivalent or have a some property as the exact same (depends on function). QUBO solver satisfies this. The actual mechanism that pushes net carbon exposure toward zero is the explicit penalty term which forces the carbon weighted long total and the carbon weighted short total to converge (independent of spheres).
+The pipeline reads prepared EIA files under `aayush-ai-response/data/` and writes the canonical model to `aayush-ai-response/data/optimization_model.json`.
 
-The strategy is a carbon neutrality based pairs trade rather than a directional bet. Because both legs (long and short) move with the same underlying energy price cycle, the pair is designed to be closer to market neutral than an outright long or short position in itself. While the carbon exposure is what the optimizer is asked to balance.
+## Run on IQM Garnet
 
-For QUBO we use two binary variable sets across N candidate assets x_i in {0, 1} marks asset i as a long position and similar y_i in {0, 1} marks it as a short. Net carbon balace pulls the long toward the short. Net price covariance exposure is penalized by the combined long-short. The fixed cardinality forces the same amount of longs and shorts. Without exclusivity our model could make meaningless trades like buying at 1 euro and selling it at 1 euro which is also a waste of computation power so this is penalized aswell.
+The IQM script uses Qiskit as the circuit/Hamiltonian bridge to IQM Resonance. It submits the same Ising fields and couplings produced by the pipeline; it does not use PennyLane.
 
+```bash
+export IQM_TOKEN='token-from-resonance-dashboard'
+export IQM_URL='https://resonance.iqm.tech'
+export IQM_BACKEND='garnet'
+python3 run_on_quantum.py --shots 1000
+```
+
+The token is never stored in source control. Start with small shot counts while validating the circuit; IQM Resonance credits are consumed by hardware jobs.
+
+## Layout
+
+- `run_pipeline.py`: canonical end-to-end workflow.
+- `universe.py`: EIA data and emissions loader; rejects non-energy inputs.
+- `qubo.py`: QUBO, Ising conversion, feasibility, and antipode helpers.
+- `qaoa_solver.py`: Qrisp simulator adapter.
+- `run_on_quantum.py`: IQM Resonance/Garnet adapter.
+- `aayush-ai-response/data/`: prepared EIA inputs and generated model output.
+- `archive/`: superseded scripts, notebook exports, and reference material.

@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.py[cod]
+iqm_raw_results.json
+.DS_Store
