@@ -175,7 +175,7 @@ def summarize_counts(counts, u, q, constant, k, reverse_bitstrings=False):
         ordered = bitstring[::-1] if reverse_bitstrings else bitstring
         bits = tuple(int(bit) for bit in ordered)
         values = np.asarray(bits, dtype=int)
-        is_feasible = feasible(bits, u.n, k)
+        is_feasible = bool(feasible(bits, u.n, k))
         measurements.append({
             "bitstring": bitstring,
             "count": float(raw_count),
