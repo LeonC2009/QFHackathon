@@ -1,9 +1,7 @@
-"""Run the combined workflow from the dedicated all_in_one folder."""
+"""Run the self-contained combined workflow from this folder."""
 
-from pathlib import Path
-import runpy
-import sys
+from qfhackathon_core import main
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-runpy.run_path(str(ROOT / "qfhackathon_all_in_one.py"), run_name="__main__")
+
+if __name__ == "__main__":
+	main()
