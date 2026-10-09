@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import itertools
 import json
 import logging
@@ -12,6 +13,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+import webbrowser
 
 import numpy as np
 import pandas as pd
@@ -55,6 +57,16 @@ def progress(label):
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 RESULT_PATH = DATA_DIR / "dashboard_result.json"
+COMPARISON_PATH = DATA_DIR / "dashboard_comparison.json"
+GENERATED_DATA_FILES = (
+    "prices.csv",
+    "returns.csv",
+    "metadata.csv",
+    "covariance.csv",
+    "resonance_counts.json",
+    "dashboard_result.json",
+    "dashboard_comparison.json",
+)
 TRADING_DAYS = 252
 FUTURES = {
     "CL=F": ("WTI crude oil", "oil", 5.8, 73.15),
@@ -294,6 +306,7 @@ def run_local(args):
 
 def run_resonance(args):
     """Route and optionally submit the standalone model directly to IQM."""
+    started = time.perf_counter()
     from qiskit import QuantumCircuit, transpile
     from qiskit.circuit.library import QAOAAnsatz
     from qiskit.quantum_info import SparsePauliOp
@@ -348,24 +361,140 @@ def run_resonance(args):
     backend = provider.get_backend(backend_name)
     circuit = QAOAAnsatz(cost_operator=cost, mixer_operator=mixer, initial_state=initial, reps=args.reps)
     circuit.measure_all()
+    compile_started = time.perf_counter()
     with progress("Transpiling and binding IQM circuit"):
         transpiled = transpile(circuit, backend=backend, optimization_level=3)
         angles = [0.5] * len(transpiled.parameters)
         bound = transpiled.assign_parameters(dict(zip(transpiled.parameters, angles)))
-    LOGGER.info("Garnet circuit ready: %d qubits, %d angles", width, len(angles))
-    if args.dry_run:
+    compile_seconds = time.perf_counter() - compile_started
+    LOGGER.info("%s circuit ready: %d qubits, %d angles", backend_name.upper(), width, len(angles))
+    if getattr(args, "dry_run", False):
         LOGGER.info("Resonance dry run passed; no shots submitted")
-        return
-    with progress("Running IQM Resonance/Garnet"):
+        return {
+            "backend": backend_name,
+            "qubits": width,
+            "compile_seconds": compile_seconds,
+            "remote_job_seconds": None,
+            "end_to_end_seconds": time.perf_counter() - started,
+        }
+    job_started = time.perf_counter()
+    with progress(f"Running IQM Resonance/{backend_name.upper()}"):
         counts = backend.run(bound, shots=args.shots).result().get_counts()
+    remote_job_seconds = time.perf_counter() - job_started
     output_path = DATA_DIR / "resonance_counts.json"
     output_path.write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
     save_dashboard_result(
         counts, universe, q, constant, args.k,
-        f"YAHOO / IQM GARNET / {args.shots} SHOTS",
+        f"YAHOO / IQM {backend_name.upper()} / {args.shots} SHOTS",
         reverse_bitstrings=True,
     )
     LOGGER.info("Saved hardware counts to %s", output_path)
+    return {
+        "backend": backend_name,
+        "qubits": width,
+        "compile_seconds": compile_seconds,
+        "remote_job_seconds": remote_job_seconds,
+        "end_to_end_seconds": time.perf_counter() - started,
+    }
+
+
+def _confirm_resonance_submission(args) -> bool:
+    if args.yes:
+        return True
+    try:
+        answer = input(
+            f"Submit {args.shots} shots to IQM {os.environ.get('IQM_BACKEND', 'garnet')}? "
+            "This may consume Resonance credits. [y/N] "
+        )
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
+def run_comparison(args):
+    if not (DATA_DIR / "metadata.csv").is_file() or not (DATA_DIR / "returns.csv").is_file():
+        LOGGER.info("No complete local dataset found; downloading the default Yahoo window")
+        download(args.start)
+
+    universe = load(args.n)
+    model_started = time.perf_counter()
+    q, constant = build_qubo(universe, args.k)
+    qubo_build_seconds = time.perf_counter() - model_started
+    classical_started = time.perf_counter()
+    best_energy, best_bits = exact(q, constant, universe.n, args.k)
+    classical_seconds = time.perf_counter() - classical_started
+    LOGGER.info("Classical optimum: %s energy=%.6f", describe(best_bits, universe), best_energy)
+
+    backend = os.environ.get("IQM_BACKEND", "garnet")
+    quantum = None
+    if _confirm_resonance_submission(args):
+        quantum = run_resonance(args)
+    else:
+        LOGGER.info("Resonance submission skipped; showing classical timing only")
+
+    values = np.asarray(best_bits, dtype=int)
+    comparison = {
+        "completed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "asset_count": universe.n,
+        "qubit_count": 2 * universe.n,
+        "shots": args.shots,
+        "classical": {
+            "method": "Exact feasible-state enumeration",
+            "qubo_build_seconds": qubo_build_seconds,
+            "solve_seconds": classical_seconds,
+            "states_considered": 1 << (2 * universe.n),
+            "best_energy": best_energy,
+            "long": [universe.tickers[i] for i in range(universe.n) if values[i]],
+            "short": [universe.tickers[i] for i in range(universe.n) if values[universe.n + i]],
+        },
+        "quantum": None if quantum is None else {
+            **quantum,
+            "method": "QAOA on IQM Resonance",
+            "shots": args.shots,
+            "remote_job_includes_queue": True,
+        },
+        "backend": backend,
+        "timing_note": (
+            "The classical figure times exact enumeration only. Quantum compilation is separate; "
+            "the Resonance job duration includes submission and service/queue wait, not just QPU gate time. "
+            "These timings use different algorithms and are not an apples-to-apples speedup benchmark."
+        ),
+    }
+    COMPARISON_PATH.write_text(json.dumps(comparison, indent=2) + "\n", encoding="utf-8")
+    LOGGER.info("Saved timing comparison to %s", COMPARISON_PATH)
+
+    if not args.no_dashboard:
+        from dashboard_server import create_server
+
+        with create_server(args.port) as server:
+            url = f"http://{server.server_address[0]}:{server.server_address[1]}"
+            print(f"Dashboard running at {url}")
+            if not args.no_browser:
+                webbrowser.open(url)
+            server.serve_forever()
+
+
+def reset_dataset(args):
+    if not args.yes:
+        try:
+            answer = input(
+                "Delete generated Yahoo dataset and saved result files from this folder? [y/N] "
+            )
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() not in {"y", "yes"}:
+            LOGGER.info("Dataset reset cancelled")
+            return
+
+    removed = []
+    for name in GENERATED_DATA_FILES:
+        path = DATA_DIR / name
+        if path.is_file():
+            path.unlink()
+            removed.append(name)
+    LOGGER.info("Removed generated files: %s", ", ".join(removed) if removed else "none")
+    if args.refresh:
+        download(args.start)
 
 
 def add_run_options(parser):
@@ -394,6 +523,27 @@ def main():
     resonance_parser.add_argument("--reps", type=int, default=1)
     resonance_parser.add_argument("--n", type=int, default=5)
     resonance_parser.add_argument("--k", type=int, default=2)
+    resonance_parser.add_argument("--yes", action="store_true", help="confirm submission without prompting")
+    comparison_parser = sub.add_parser(
+        "compare",
+        help="time exact classical solving, submit QAOA to Resonance, then start the dashboard",
+    )
+    comparison_parser.add_argument("--start", default="2018-01-01")
+    comparison_parser.add_argument("--n", type=int, default=5)
+    comparison_parser.add_argument("--k", type=int, default=2)
+    comparison_parser.add_argument("--shots", type=int, default=1000)
+    comparison_parser.add_argument("--reps", type=int, default=1)
+    comparison_parser.add_argument("--port", type=int, default=8765)
+    comparison_parser.add_argument("--yes", action="store_true", help="confirm submission without prompting")
+    comparison_parser.add_argument("--no-dashboard", action="store_true", help=argparse.SUPPRESS)
+    comparison_parser.add_argument("--no-browser", action="store_true")
+    reset_parser = sub.add_parser(
+        "reset",
+        help="remove generated dataset and saved results; optionally download a fresh dataset",
+    )
+    reset_parser.add_argument("--yes", action="store_true", help="skip the confirmation prompt")
+    reset_parser.add_argument("--refresh", action="store_true", help="download a fresh dataset after clearing")
+    reset_parser.add_argument("--start", default="2018-01-01")
     args = parser.parse_args()
     configure_logging(args.verbose)
     if args.command == "download":
@@ -402,8 +552,12 @@ def main():
         run_classical(args)
     elif args.command in {"local", "run"}:
         run_local(args)
-    else:
+    elif args.command == "resonance":
         run_resonance(args)
+    elif args.command == "compare":
+        run_comparison(args)
+    elif args.command == "reset":
+        reset_dataset(args)
 
 
 if __name__ == "__main__":

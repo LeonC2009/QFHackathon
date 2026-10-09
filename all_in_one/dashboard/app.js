@@ -4,8 +4,17 @@ function formatNumber(value, digits = 0) {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: digits }).format(value || 0);
 }
 
+function formatSeconds(value) {
+  if (value == null || !Number.isFinite(Number(value))) return '—';
+  const seconds = Number(value);
+  return seconds < 1 ? `${(seconds * 1000).toFixed(1)} ms` : `${seconds.toFixed(2)} s`;
+}
+
 function render(state) {
   const result = state.result || {};
+  const comparison = state.comparison || {};
+  const classical = comparison.classical || {};
+  const quantum = comparison.quantum || {};
   const best = result.best_feasible || {};
   const longAssets = best.long || [];
   const shortAssets = best.short || [];
@@ -16,7 +25,9 @@ function render(state) {
   const qubits = assets.length * 2;
   $('#qubits').textContent = formatNumber(qubits);
   $('#orbitQubits').textContent = `${formatNumber(qubits)} qubits`;
-  $('#backend').textContent = (state.source || '').includes('GARNET') ? 'GARNET' : 'LOCAL';
+  $('#backend').textContent = comparison.backend
+    ? comparison.backend.toUpperCase()
+    : ((state.source || '').includes('IQM') ? (state.source.match(/IQM ([^/]+)/) || [])[1]?.trim() || 'IQM' : 'LOCAL');
 
   $('#longAssets').innerHTML = longAssets.length ? longAssets.join('<br>') : 'waiting for run';
   $('#shortAssets').innerHTML = shortAssets.length ? shortAssets.join('<br>') : 'waiting for run';
@@ -30,6 +41,18 @@ function render(state) {
   $('#longCarbon').textContent = longAssets.length ? 'selected' : '—';
   $('#shortCarbon').textContent = shortAssets.length ? 'selected' : '—';
   $('#exposureFill').style.width = `${Math.min(Math.max(Math.abs(carbon) / 20000 * 100, 8), 94)}%`;
+
+  $('#comparisonStamp').textContent = comparison.completed_at
+    ? `Assets: ${comparison.asset_count}; qubits: ${comparison.qubit_count}; ${comparison.shots} shots`
+    : 'Run a comparison to populate timings';
+  $('#classicalTime').textContent = formatSeconds(classical.solve_seconds);
+  $('#classicalStates').textContent = classical.states_considered
+    ? `${formatNumber(classical.states_considered)} bitstrings considered`
+    : 'feasible-state enumeration';
+  $('#quboTime').textContent = formatSeconds(classical.qubo_build_seconds);
+  $('#compileTime').textContent = formatSeconds(quantum.compile_seconds);
+  $('#quantumJobTime').textContent = formatSeconds(quantum.remote_job_seconds);
+  $('#quantumTotalTime').textContent = formatSeconds(quantum.end_to_end_seconds);
 
   $('#assetHeading').textContent = `${assets.length} energy exposures`;
   const maxCarbon = Math.max(...assets.map((asset) => asset.carbon), 1);
@@ -70,6 +93,48 @@ $('#refreshButton').addEventListener('click', async () => {
   catch (error) { toast(error.message); }
 });
 
+$('#compareButton').addEventListener('click', async () => {
+  const backend = ($('#backend').textContent || 'Garnet').trim();
+  if (!window.confirm(`Run exact classical enumeration, then submit 1,000 shots to IQM ${backend}? This may consume Resonance credits.`)) return;
+  const button = $('#compareButton');
+  const status = $('#runStatus');
+  button.disabled = true;
+  button.innerHTML = '<span>◌</span> Comparing…';
+  status.textContent = 'Running the classical reference, then waiting for IQM…';
+  try {
+    const response = await fetch('/api/run-comparison', { method: 'POST' });
+    const payload = await response.json();
+    if (!payload.ok) throw new Error(payload.output || 'Comparison failed');
+    render(payload.state);
+    status.textContent = 'Comparison complete';
+    toast('Classical and Resonance timings loaded');
+  } catch (error) {
+    status.textContent = error.message;
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+    button.innerHTML = '<span>◷</span> Compare + run Resonance';
+  }
+});
+
+$('#resetButton').addEventListener('click', async () => {
+  if (!window.confirm('Clear the saved Yahoo dataset and run results, then download a fresh Yahoo dataset?')) return;
+  const button = $('#resetButton');
+  button.disabled = true;
+  try {
+    const response = await fetch('/api/reset-dataset', { method: 'POST' });
+    const payload = await response.json();
+    if (!payload.ok) throw new Error(payload.output || 'Dataset refresh failed');
+    render(payload.state);
+    toast('Dataset refreshed; previous results cleared');
+  } catch (error) {
+    $('#runStatus').textContent = error.message;
+    toast(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 $('#runButton').addEventListener('click', async () => {
   const button = $('#runButton');
   const status = $('#runStatus');
@@ -93,7 +158,8 @@ $('#runButton').addEventListener('click', async () => {
 });
 
 $('#resonanceButton').addEventListener('click', async () => {
-  if (!window.confirm('Submit 1,000 shots to IQM Garnet? This uses Resonance credits.')) return;
+  const backend = ($('#backend').textContent || 'Garnet').trim();
+  if (!window.confirm(`Submit 1,000 shots to IQM ${backend}? This may consume Resonance credits.`)) return;
   const button = $('#resonanceButton');
   const status = $('#runStatus');
   button.disabled = true;

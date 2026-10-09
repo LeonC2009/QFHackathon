@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent
 DASHBOARD = ROOT / "dashboard"
 DATA_DIR = ROOT / "data"
 RESULT_PATH = DATA_DIR / "dashboard_result.json"
+COMPARISON_PATH = DATA_DIR / "dashboard_comparison.json"
 
 
 class DashboardHTTPServer(ThreadingHTTPServer):
@@ -30,9 +31,14 @@ def read_json(path: Path, default):
 
 
 def state() -> dict:
-    with (DATA_DIR / "metadata.csv").open(newline="", encoding="utf-8") as metadata_file:
-        metadata = list(csv.DictReader(metadata_file))
+    metadata_path = DATA_DIR / "metadata.csv"
+    if metadata_path.is_file():
+        with metadata_path.open(newline="", encoding="utf-8") as metadata_file:
+            metadata = list(csv.DictReader(metadata_file))
+    else:
+        metadata = []
     result = read_json(RESULT_PATH, {})
+    comparison = read_json(COMPARISON_PATH, {})
     asset_details = [
         {"asset": row["ticker"], "carbon": float(row["carbon"])}
         for row in metadata
@@ -47,7 +53,8 @@ def state() -> dict:
             "assets_detail": asset_details,
         },
         "result": result,
-        "source": result.get("source", "YAHOO / STANDALONE DATASET"),
+        "source": result.get("source", "YAHOO / STANDALONE DATASET" if assets else "NO DATASET"),
+        "comparison": comparison,
         "scaling": [{
             "asset_count": len(assets),
             "qubits": len(assets) * 2,
@@ -109,6 +116,17 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 sys.executable, str(ROOT / "qfhackathon.py"), "resonance",
                 "--shots", "1000", "--reps", "1", "--n", "5", "--k", "2",
             ]
+        elif endpoint == "/api/run-comparison":
+            command = [
+                sys.executable, str(ROOT / "qfhackathon.py"), "compare",
+                "--shots", "1000", "--reps", "1", "--n", "5", "--k", "2",
+                "--yes", "--no-dashboard",
+            ]
+        elif endpoint == "/api/reset-dataset":
+            command = [
+                sys.executable, str(ROOT / "qfhackathon.py"), "reset",
+                "--yes", "--refresh",
+            ]
         else:
             self._send(404, b"Not found", "text/plain; charset=utf-8")
             return
@@ -116,7 +134,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         try:
             process = subprocess.run(
                 command, cwd=ROOT, capture_output=True, text=True,
-                timeout=300, check=False,
+                timeout=3600, check=False,
             )
             output = process.stdout + process.stderr
             payload = {
