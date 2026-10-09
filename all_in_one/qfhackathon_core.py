@@ -3,11 +3,54 @@ from __future__ import annotations
 
 import argparse
 import itertools
+import logging
+import os
+import subprocess
+import sys
+import threading
+import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+LOGGER = logging.getLogger("qfhackathon")
+
+
+def configure_logging(verbose=False):
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
+
+@contextmanager
+def progress(label):
+    """Show a small terminal spinner while a long operation is running."""
+    running = True
+
+    def spin():
+        symbols = "|/-\\"
+        index = 0
+        while running:
+            sys.stdout.write(f"\r{label} {symbols[index % len(symbols)]}")
+            sys.stdout.flush()
+            index += 1
+            time.sleep(0.12)
+        sys.stdout.write(f"\r{label} done\n")
+        sys.stdout.flush()
+
+    thread = threading.Thread(target=spin, daemon=True)
+    LOGGER.info("Starting: %s", label)
+    thread.start()
+    try:
+        yield
+    finally:
+        running = False
+        thread.join()
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
@@ -33,7 +76,8 @@ def download(start, end=None):
     import yfinance as yf
 
     tickers = list(FUTURES)
-    raw = yf.download(tickers, start=start, end=end, auto_adjust=False, group_by="column", progress=False, threads=False)
+    with progress("Downloading Yahoo futures"):
+        raw = yf.download(tickers, start=start, end=end, auto_adjust=False, group_by="column", progress=False, threads=False)
     if raw.empty:
         raise RuntimeError("Yahoo Finance returned no data")
     prices = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw[["Close"]]
@@ -60,7 +104,7 @@ def download(start, end=None):
     returns.to_csv(DATA_DIR / "returns.csv")
     metadata.to_csv(DATA_DIR / "metadata.csv")
     returns.cov().mul(TRADING_DAYS).to_csv(DATA_DIR / "covariance.csv")
-    print(f"Saved {len(selected)} futures and {len(returns)} observations to {DATA_DIR}")
+    LOGGER.info("Saved %d futures and %d observations to %s", len(selected), len(returns), DATA_DIR)
 
 
 def load(n):
@@ -105,10 +149,11 @@ def feasible(bits, n, k):
 
 def exact(q, constant, n, k):
     candidates = []
-    for index in range(1 << (2 * n)):
-        bits = tuple((index >> shift) & 1 for shift in range(2 * n - 1, -1, -1))
-        if feasible(bits, n, k):
-            candidates.append((energy(bits, q, constant), bits))
+    with progress(f"Enumerating exact feasible portfolios ({n} assets)"):
+        for index in range(1 << (2 * n)):
+            bits = tuple((index >> shift) & 1 for shift in range(2 * n - 1, -1, -1))
+            if feasible(bits, n, k):
+                candidates.append((energy(bits, q, constant), bits))
     return min(candidates)
 
 
@@ -157,40 +202,83 @@ def run_qaoa(q, constant, u, k, shots, steps):
         dicke_state(qarg[0], k)
         dicke_state(qarg[1], k)
 
-    result = QAOAProblem(cost_operator, portfolio_mixer(), classical_cost, init_function=initialize).run(
-        lambda: QuantumArray(QuantumVariable(u.n), shape=(2,)), depth=1, mes_kwargs={"shots": shots}, max_iter=max(steps, 4)
-    )
+    with progress(f"Running local QAOA ({shots} shots)"):
+        result = QAOAProblem(cost_operator, portfolio_mixer(), classical_cost, init_function=initialize).run(
+            lambda: QuantumArray(QuantumVariable(u.n), shape=(2,)), depth=1, mes_kwargs={"shots": shots}, max_iter=max(steps, 4)
+        )
     counts = {key(name): float(count) for name, count in result.items()}
     valid = [(energy(tuple(map(int, name)), q, constant), name, count) for name, count in counts.items() if feasible(tuple(map(int, name)), u.n, k)]
-    print(f"QAOA states={len(counts)} feasible_probability={sum(item[2] for item in valid):.3f}")
+    LOGGER.info("QAOA measured %d states; feasible probability=%.3f", len(counts), sum(item[2] for item in valid))
     if valid:
         best = min(valid)
         print("Best sampled:", describe(tuple(map(int, best[1])), u), f"energy={best[0]:.6f}")
 
 
+def run_classical(args):
+    universe = load(args.n)
+    q, constant = build_qubo(universe, args.k)
+    best_energy, best_bits = exact(q, constant, universe.n, args.k)
+    LOGGER.info("Assets: %s", ", ".join(universe.tickers))
+    LOGGER.info("Classical optimum: %s energy=%.6f", describe(best_bits, universe), best_energy)
+
+
+def run_local(args):
+    universe = load(args.n)
+    q, constant = build_qubo(universe, args.k)
+    best_energy, best_bits = exact(q, constant, universe.n, args.k)
+    LOGGER.info("Classical reference: %s energy=%.6f", describe(best_bits, universe), best_energy)
+    run_qaoa(q, constant, universe, args.k, args.shots, args.steps)
+
+
+def run_resonance(args):
+    """Delegate hardware execution to the original adapter when available."""
+    adapter = ROOT.parent / "run_on_quantum.py"
+    if not adapter.exists():
+        raise RuntimeError("Resonance requires the original root run_on_quantum.py adapter")
+    token_present = bool(os.environ.get("RESONANCE_API_TOKEN") or os.environ.get("IQM_TOKEN"))
+    if not token_present:
+        raise RuntimeError("Set RESONANCE_API_TOKEN or IQM_TOKEN before using resonance")
+    command = [sys.executable, str(adapter), "--shots", str(args.shots), "--reps", str(args.reps)]
+    if args.dry_run:
+        command.append("--dry-run")
+    with progress("Running IQM Resonance/Garnet"):
+        subprocess.run(command, cwd=ROOT.parent, check=True)
+
+
+def add_run_options(parser):
+    parser.add_argument("--n", type=int, default=5)
+    parser.add_argument("--k", type=int, default=2)
+    parser.add_argument("--shots", type=int, default=256)
+    parser.add_argument("--steps", type=int, default=10)
+
+
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
     download_parser = sub.add_parser("download")
     download_parser.add_argument("--start", default="2018-01-01")
     download_parser.add_argument("--end")
-    run_parser = sub.add_parser("run")
-    run_parser.add_argument("--n", type=int, default=5)
-    run_parser.add_argument("--k", type=int, default=2)
-    run_parser.add_argument("--qaoa", action="store_true")
-    run_parser.add_argument("--shots", type=int, default=256)
-    run_parser.add_argument("--steps", type=int, default=10)
+    classical_parser = sub.add_parser("classical", help="run exact classical optimization")
+    add_run_options(classical_parser)
+    local_parser = sub.add_parser("local", help="run classical reference plus local QAOA")
+    add_run_options(local_parser)
+    run_parser = sub.add_parser("run", help="compatibility alias for local")
+    add_run_options(run_parser)
+    resonance_parser = sub.add_parser("resonance", help="run or dry-run IQM Resonance/Garnet")
+    resonance_parser.add_argument("--dry-run", action="store_true")
+    resonance_parser.add_argument("--shots", type=int, default=1000)
+    resonance_parser.add_argument("--reps", type=int, default=1)
     args = parser.parse_args()
+    configure_logging(args.verbose)
     if args.command == "download":
         download(args.start, args.end)
-        return
-    u = load(args.n)
-    q, constant = build_qubo(u, args.k)
-    best_energy, best_bits = exact(q, constant, u.n, args.k)
-    print("Assets:", ", ".join(u.tickers))
-    print("Classical optimum:", describe(best_bits, u), f"energy={best_energy:.6f}")
-    if args.qaoa:
-        run_qaoa(q, constant, u, args.k, args.shots, args.steps)
+    elif args.command == "classical":
+        run_classical(args)
+    elif args.command in {"local", "run"}:
+        run_local(args)
+    else:
+        run_resonance(args)
 
 
 if __name__ == "__main__":
