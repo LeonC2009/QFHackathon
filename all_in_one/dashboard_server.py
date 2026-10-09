@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 import subprocess
@@ -141,6 +142,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = 8765
-    print(f"Standalone dashboard running at http://127.0.0.1:{port}")
-    ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler).serve_forever()
+    parser = argparse.ArgumentParser(description="Serve the standalone QFHackathon dashboard.")
+    parser.add_argument("--port", type=int, default=8765)
+    args = parser.parse_args()
+    with ThreadingHTTPServer(("127.0.0.1", args.port), DashboardHandler) as server:
+        print(f"Standalone dashboard running at http://{server.server_address[0]}:{server.server_address[1]}")
+        server.serve_forever()

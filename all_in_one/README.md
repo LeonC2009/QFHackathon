@@ -33,3 +33,5 @@ python dashboard_server.py
 ```
 
 Open <http://127.0.0.1:8765>. The dashboard serves the frontend bundled in this folder, reads only this folder's `data/`, and runs the local Qrisp or IQM workflow through this folder's launcher. Results from either run are decoded and saved to `data/dashboard_result.json` for the dashboard.
+
+If port `8765` is already in use, choose another local port, for example `python dashboard_server.py --port 8766`, then open <http://127.0.0.1:8766>.
