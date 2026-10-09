@@ -16,7 +16,7 @@ from qubo import (antipode, brute_force, build_qubo, decode, is_feasible,
                   ising_energy, qubo_energy, qubo_to_ising)
 from universe import load_universe
 
-
+#argument parsing and making everything work together
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=6, help="candidate assets (qubits = 2n)")
