@@ -15,7 +15,7 @@ from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
 from iqm.qiskit_iqm import IQMProvider
 
-from results import summarize_measurements
+from results.decoder import summarize_measurements
 
 
 DEFAULT_MODEL = Path("project_data/data/optimization_model.json")

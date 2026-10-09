@@ -23,9 +23,9 @@
     <main>
       <section class="hero">
         <div class="hero-copy">
-          <p class="kicker">Carbon-neutral pair discovery</p>
+          <p class="kicker">Carbon-aware hedge discovery</p>
           <h1>Find the hedge<br><em>inside the energy curve.</em></h1>
-          <p class="hero-text">A data-to-quantum workflow balancing emissions, covariance risk, and long/short constraints across four EIA energy futures.</p>
+          <p class="hero-text">A data-to-quantum workflow balancing estimated emissions, covariance risk, and long/short constraints across energy futures.</p>
           <div class="hero-actions">
             <button class="primary-button" id="runButton"><span>▶</span> Run local QAOA</button>
             <button class="secondary-button" id="resonanceButton"><span>↗</span> Submit to Garnet</button>
@@ -34,7 +34,7 @@
         </div>
         <div class="hero-orbit" aria-hidden="true">
           <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
-          <div class="orbit-core"><span>Q</span><small>8 qubits</small></div>
+          <div class="orbit-core"><span>Q</span><small>10 qubits</small></div>
           <b class="orbit-label label-a">EIA</b><b class="orbit-label label-b">QUBO</b><b class="orbit-label label-c">IQM</b>
         </div>
       </section>
@@ -94,7 +94,7 @@
 
       <section class="lower-grid">
         <article class="asset-panel">
-          <div class="panel-head"><div><p class="kicker">Universe composition</p><h3>Four energy exposures</h3></div><span class="muted">kg CO₂ / position</span></div>
+          <div class="panel-head"><div><p class="kicker">Universe composition</p><h3 id="assetHeading">Energy exposures</h3></div><span class="muted">kg CO₂ / position</span></div>
           <div id="assetBars" class="asset-bars"></div>
         </article>
         <article class="method-panel">
@@ -112,7 +112,7 @@
       </section>
     </main>
 
-    <footer><span>QFH / presentation console</span><span>data: EIA · solver: Qrisp · hardware: IQM Resonance</span></footer>
+    <footer><span>QFH / presentation console</span><span>data: Yahoo futures · solver: Qrisp · hardware: IQM Resonance</span></footer>
   </div>
   <div class="toast" id="toast" role="status"></div>
 </body>

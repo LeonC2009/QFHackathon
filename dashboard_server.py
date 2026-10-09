@@ -34,12 +34,13 @@ def state() -> dict:
 	return {
 		"model": {
 			"assets": model.get("assets", []),
+			"data_source": model.get("data_source", "eia"),
 			"long_count": model.get("long_count", 2),
 			"short_count": model.get("short_count", 2),
 			"assets_detail": assets,
 		},
 		"result": read_json(RESULT_PATH, {}),
-		"source": "IQM GARNET / 1,000 SHOTS",
+		"source": f"{model.get('data_source', 'eia').upper()} / IQM GARNET / 1,000 SHOTS",
 		"angles": read_json(ANGLES_PATH, {}),
 		"scaling": read_json(SCALING_PATH, {}).get("results", []),
 	}
@@ -82,7 +83,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 			[sys.executable, "run_on_quantum.py", "--shots", "1000", "--reps", "1"]
 			if is_hardware
 			else [
-				sys.executable, "run_pipeline.py", "--n", "4", "--k", "2",
+					sys.executable, "run_pipeline.py", "--data-source", "yahoo", "--n", "5", "--k", "2",
 				"--qaoa", "--p", "1", "--steps", "20", "--shots", "256",
 			]
 		)
@@ -95,7 +96,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 			response_state = state()
 			if not is_hardware:
 				response_state["result"] = read_json(LOCAL_RESULT_PATH, {})
-				response_state["source"] = "LOCAL QAOA / 256 SHOTS"
+				response_state["source"] = "YAHOO / LOCAL QAOA / 256 SHOTS"
 			self._send(
 				200 if process.returncode == 0 else 500,
 				json.dumps({"ok": process.returncode == 0, "output": output, "state": response_state}).encode(),

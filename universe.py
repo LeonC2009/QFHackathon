@@ -30,12 +30,16 @@ class Universe:
         return len(self.tickers)
 
 
-def load_universe(n=4, picks=None, data_dir=None):
+def load_universe(n=4, picks=None, data_dir=None, data_source="eia"):
     """
     n      number of candidate assets (the QUBO uses 2n qubits).
     picks  optional explicit ticker list, e.g. ["XOM", "BTU", "EQT", "FSLR", "CEG", "BEP"].
     """
     data_dir = Path(data_dir) if data_dir is not None else DEFAULT_DATA_DIR
+    if data_source == "yahoo":
+        return _load_yahoo_universe(n, picks, data_dir)
+    if data_source != "eia":
+        raise ValueError(f"Unknown data source: {data_source}")
     prices = pd.read_csv(data_dir / "energy_futures.csv")
     prices = prices.set_index("date")
     returns = pd.read_csv(data_dir / "energy_returns.csv", index_col="date")
@@ -75,6 +79,34 @@ def load_universe(n=4, picks=None, data_dir=None):
             for asset in picks
         ]),
         mu=mu_raw / scale if scale > 0 else mu_raw,
+        mu_raw=mu_raw,
+        sigma=sigma,
+    )
+
+
+def _load_yahoo_universe(n, picks, data_dir):
+    metadata = pd.read_csv(data_dir / "yahoo_futures_metadata.csv").set_index("ticker")
+    covariance = pd.read_csv(data_dir / "yahoo_futures_covariance.csv", index_col=0)
+    returns = pd.read_csv(data_dir / "yahoo_futures_returns.csv", index_col="date")
+    available = [ticker for ticker in returns.columns if ticker in metadata.index and ticker in covariance.columns]
+    if picks is None:
+        picks = available[:n]
+    else:
+        picks = list(picks)
+    missing = sorted(set(picks) - set(available))
+    if missing:
+        raise ValueError(f"Unknown Yahoo futures or missing metadata: {missing}")
+    if len(picks) < 2:
+        raise ValueError("At least two Yahoo futures are required")
+    sub = returns[picks].dropna()
+    mu_raw = sub.mean().to_numpy(float) * 252.0
+    sigma = sub.cov().to_numpy(float) * 252.0
+    sigma = (sigma + sigma.T) / 2
+    return Universe(
+        tickers=picks,
+        types=metadata.loc[picks, "type"].tolist(),
+        carbon=metadata.loc[picks, "carbon"].to_numpy(float),
+        mu=mu_raw / np.abs(mu_raw).max() if np.abs(mu_raw).max() > 0 else mu_raw,
         mu_raw=mu_raw,
         sigma=sigma,
     )

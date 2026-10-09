@@ -1,6 +1,6 @@
 # Quantum Topological Carbon Hedging
 
-A research and presentation prototype that turns EIA energy-futures data into a constrained long/short QUBO, converts it to an Ising Hamiltonian, evaluates it classically and with Qrisp, and can submit the same model to IQM Resonance/Garnet.
+A research and presentation prototype that turns energy-futures data into a constrained long/short QUBO, converts it to an Ising Hamiltonian, evaluates it classically and with Qrisp, and can submit the same model to IQM Resonance/Garnet. The default source is EIA; a reproducible Yahoo Finance futures source is also available for larger experiments.
 
 Hydro and wind are excluded from the active universe. The current real-data universe is WTI crude oil, natural gas, RBOB gasoline, and heating oil.
 
@@ -31,6 +31,31 @@ Run local Qrisp:
 ```bash
 python run_pipeline.py --qaoa --p 1 --steps 20 --shots 512
 ```
+
+## Single-file workflow
+
+For presentations or quick experiments, [qfhackathon_all_in_one.py](qfhackathon_all_in_one.py) combines the Yahoo downloader, data loader, QUBO, exact solver, and local QAOA into one command-line file. The existing modular setup remains unchanged and is the backup/reference implementation.
+
+```bash
+python qfhackathon_all_in_one.py download --start 2018-01-01
+python qfhackathon_all_in_one.py run --n 5 --k 2 --qaoa --shots 256
+```
+
+The hardware command intentionally delegates to the maintained Resonance adapter so the credential and transpilation path stays in one reviewed place:
+
+```bash
+python qfhackathon_all_in_one.py hardware --dry-run
+python qfhackathon_all_in_one.py hardware --shots 1000
+```
+
+Download Yahoo Finance futures and run the classical pipeline:
+
+```bash
+python project_data/download_yahoo_futures.py --start 2018-01-01
+python run_pipeline.py --data-source yahoo --n 4 --k 2
+```
+
+Yahoo supplies prices only. The downloader stores explicit contract metadata and estimates carbon exposure per `$1,000` position using fuel-specific emissions factors. The Yahoo source currently covers WTI, Brent, natural gas, gasoline, and heating oil; add reviewed contracts in [project_data/download_yahoo_futures.py](project_data/download_yahoo_futures.py). EIA remains the default and should remain the headline source when real EIA emissions data is required.
 
 Optimize hardware angles and validate without submitting:
 
@@ -95,7 +120,7 @@ The dashboard visualizes the latest decoded portfolio, carbon exposure, feasibil
 
 ## Project Map
 
-- `universe.py`: loads prepared EIA returns, covariance, expected returns, and position carbon exposure.
+- `universe.py`: loads EIA or generated Yahoo returns, covariance, expected returns, and position carbon exposure.
 - `qubo.py`: builds the constrained QUBO, converts to Ising, checks feasibility, and evaluates antipodes.
 - `run_pipeline.py`: canonical data-to-QAOA workflow and model export.
 - `qaoa_solver.py`: Qrisp simulator with a cardinality-preserving portfolio mixer.
@@ -105,7 +130,8 @@ The dashboard visualizes the latest decoded portfolio, carbon exposure, feasibil
 - `scaling_benchmark.py`: real-base plus clearly labeled synthetic stress-size benchmark.
 - `dashboard/`: presentation frontend.
 - `dashboard_server.py`: local dashboard server and execution API.
-- `project_data/`: generic project data, prepared EIA files, generated model, and angle artifacts.
+- `project_data/`: generic project data, prepared EIA files, generated Yahoo futures artifacts, model, and angle artifacts.
+- `project_data/download_yahoo_futures.py`: reproducibly downloads Yahoo futures and builds returns, covariance, and carbon metadata.
 - `PROJECT_STATE.md`: detailed architecture, results, setup, platform notes, and limitations.
 - `archive/`: superseded scripts and reference material.
 
@@ -119,3 +145,11 @@ Short: wti, heating_oil
 ```
 
 The current hardware workflow finds the same portfolio as exact classical enumeration, but hardware feasibility remains lower than local simulation. See [PROJECT_STATE.md](PROJECT_STATE.md) for the detailed state and next work.
+
+## Tests
+
+Run the offline regression tests with:
+
+```bash
+python -m pytest -q
+```

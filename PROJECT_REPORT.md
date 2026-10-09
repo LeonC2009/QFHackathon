@@ -19,7 +19,7 @@ The credential is not stored in this repository.
 
 ## Implemented Workflow
 
-The active workflow is:
+The active EIA workflow is:
 
 ```text
 EIA energy data
@@ -51,8 +51,22 @@ Hydro and wind are excluded from the active optimization pipeline.
 - `results.py`: shared QUBO-aware decoder for hardware measurements.
 - `run_on_quantum.py`: Qiskit-to-IQM Resonance/Garnet adapter.
 - `quantum/requirements.txt`: Qrisp, Qiskit, IQM, NumPy, SciPy, and Matplotlib dependencies.
+- `project_data/download_yahoo_futures.py`: reproducible Yahoo Finance futures downloader with explicit carbon metadata.
 - `README.md`: setup and usage instructions.
 - `archive/`: superseded PennyLane, synthetic-data, Colab, and exploratory files.
+
+## Yahoo Finance Extension
+
+The project also supports a larger futures benchmark from Yahoo Finance. The downloader currently covers WTI, Brent, natural gas, gasoline, and heating oil, and writes aligned prices, returns, covariance, and metadata. Carbon exposure is estimated from fuel-level emissions factors because Yahoo supplies market prices but not emissions data.
+
+Run it with:
+
+```bash
+python project_data/download_yahoo_futures.py --start 2018-01-01
+python run_pipeline.py --data-source yahoo --n 4 --k 2
+```
+
+These results should be labeled as Yahoo-based estimates, not as a replacement for the EIA carbon-data claim.
 
 ## Verification
 

@@ -7,3 +7,5 @@ iqm-client[qiskit]
 numpy
 scipy
 matplotlib
+yfinance
+pytest

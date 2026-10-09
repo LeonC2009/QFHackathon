@@ -27,6 +27,7 @@ function render(state) {
   $('#exposureFill').style.width = `${Math.min(Math.max(Math.abs(carbon) / 20000 * 100, 8), 94)}%`;
 
   const assets = (state.model && state.model.assets_detail) || [];
+  $('#assetHeading').textContent = `${assets.length} energy exposures`;
   const maxCarbon = Math.max(...assets.map((asset) => asset.carbon), 1);
   $('#assetBars').innerHTML = assets.map((asset) => `
     <div class="asset-row">

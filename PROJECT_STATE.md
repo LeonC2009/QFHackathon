@@ -12,7 +12,11 @@ The strongest current claim is:
 
 > A classical reference solver validates the formulation, while Qrisp and IQM Garnet demonstrate how the same constrained QUBO/Ising problem behaves in simulation and on real quantum hardware.
 
-## 2. Active Data Universe
+## 2. Active Data Sources
+
+The project supports two compatible data sources.
+
+### EIA reference source
 
 The active universe contains four prepared EIA energy futures:
 
@@ -36,6 +40,19 @@ Important inputs include:
 - `raw/`: downloaded source workbooks.
 
 The active model converts each asset into an approximate carbon exposure for an equal-$1,000 notional position. Price units are converted using the energy-content convention in `universe.py`.
+
+### Yahoo Finance futures source
+
+`project_data/download_yahoo_futures.py` downloads daily closes for WTI, Brent, natural gas, gasoline, and heating oil. It writes aligned prices, returns, annualized covariance, and metadata under `project_data/data/`. Yahoo does not provide emissions metadata, so the downloader uses explicit fuel-level emissions factors and estimates carbon exposure per equal-$1,000 position.
+
+Use this source with:
+
+```text
+python project_data/download_yahoo_futures.py --start 2018-01-01
+python run_pipeline.py --data-source yahoo --n 4 --k 2
+```
+
+The Yahoo source is intended to scale the benchmark and test the optimizer on more contracts. Its carbon values are estimates, not instrument-specific emissions disclosures, so EIA remains the preferred source for the main carbon claim.
 
 ## 3. End-to-End Architecture
 
@@ -67,6 +84,15 @@ project_data/data/emissions.csv
                 |
                 v
           dashboard/
+```
+
+For Yahoo runs, the three EIA inputs are replaced by:
+
+```text
+project_data/data/yahoo_futures_prices.csv
+project_data/data/yahoo_futures_returns.csv
+project_data/data/yahoo_futures_metadata.csv
+project_data/data/yahoo_futures_covariance.csv
 ```
 
 ## 4. Mathematical Model

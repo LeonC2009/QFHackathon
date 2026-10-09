@@ -34,9 +34,10 @@ def main() -> None:
     parser.add_argument("--exclusivity-weight", type=float, default=50.0)
     parser.add_argument("--qaoa", action="store_true")
     parser.add_argument("--picks", nargs="*")
+    parser.add_argument("--data-source", choices=("eia", "yahoo"), default="eia")
     args = parser.parse_args()
 
-    universe = load_universe(n=args.n, picks=args.picks)
+    universe = load_universe(n=args.n, picks=args.picks, data_source=args.data_source)
     if 2 * args.k > universe.n:
         parser.error("--k requires at least 2*k candidate assets")
     print("Energy universe:", ", ".join(universe.tickers))
@@ -76,6 +77,7 @@ def main() -> None:
         json.dumps(
             {
                 "assets": universe.tickers,
+                "data_source": args.data_source,
                 "variable_order": [f"x_{asset}" for asset in universe.tickers]
                 + [f"y_{asset}" for asset in universe.tickers],
                 "carbon_exposure": universe.carbon.tolist(),
@@ -116,6 +118,32 @@ def main() -> None:
             probability
             for bitstring, probability in counts.items()
             if is_feasible(tuple(int(bit) for bit in bitstring), universe.n, args.k)
+        )
+        feasible_samples = [
+            (qubo_energy(tuple(int(bit) for bit in bitstring), q, constant), bitstring, probability)
+            for bitstring, probability in counts.items()
+            if is_feasible(tuple(int(bit) for bit in bitstring), universe.n, args.k)
+        ]
+        best_result = None
+        if feasible_samples:
+            best_energy, best_bitstring, best_probability = min(feasible_samples)
+            longs, shorts, net_carbon = decode(tuple(int(bit) for bit in best_bitstring), universe)
+            best_result = {
+                "long": longs,
+                "short": shorts,
+                "net_carbon": net_carbon,
+                "energy": best_energy,
+                "probability": best_probability,
+            }
+        Path("local_qaoa_result.json").write_text(
+            json.dumps({
+                "best_feasible": best_result,
+                "feasible_probability": feasible_probability,
+                "total_shots": args.shots,
+                "distinct_bitstrings": len(counts),
+                "data_source": args.data_source,
+            }, indent=2) + "\n",
+            encoding="utf-8",
         )
         print(f"Qrisp feasible probability: {feasible_probability:.3f}")
         ranked = sorted(
