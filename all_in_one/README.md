@@ -25,3 +25,11 @@ python qfhackathon.py resonance --shots 1000
 ```
 
 Yahoo data is downloaded into this folder's `data/` directory. All commands are self-contained; only the Resonance token and network access are external requirements.
+
+Start this folder's dashboard and workflow controls locally:
+
+```bash
+python dashboard_server.py
+```
+
+Open <http://127.0.0.1:8765>. The dashboard serves the frontend bundled in this folder, reads only this folder's `data/`, and runs the local Qrisp or IQM workflow through this folder's launcher. Results from either run are decoded and saved to `data/dashboard_result.json` for the dashboard.

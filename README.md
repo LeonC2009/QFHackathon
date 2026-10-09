@@ -50,6 +50,8 @@ python qfhackathon_all_in_one.py hardware --shots 1000
 
 For a separately runnable copy of this combined workflow, use the [all_in_one/](all_in_one/) folder. It includes its own `requirements.txt`, README, and launcher; the original separated implementation remains in the repository root.
 
+The standalone folder also includes its own dashboard. From inside `all_in_one/`, run `python dashboard_server.py` and open <http://127.0.0.1:8765>; its UI and run controls use only files and data inside that folder.
+
 Download Yahoo Finance futures and run the classical pipeline:
 
 ```bash

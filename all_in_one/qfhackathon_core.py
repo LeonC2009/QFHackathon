@@ -54,6 +54,7 @@ def progress(label):
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
+RESULT_PATH = DATA_DIR / "dashboard_result.json"
 TRADING_DAYS = 252
 FUTURES = {
     "CL=F": ("WTI crude oil", "oil", 5.8, 73.15),
@@ -165,6 +166,51 @@ def describe(bits, u):
     return f"long={longs} short={shorts} net_carbon={net:.2f}"
 
 
+def summarize_counts(counts, u, q, constant, k, reverse_bitstrings=False):
+    measurements = []
+    for raw_bits, raw_count in counts.items():
+        bitstring = str(raw_bits).replace(" ", "")
+        if len(bitstring) != 2 * u.n or set(bitstring) - {"0", "1"}:
+            continue
+        ordered = bitstring[::-1] if reverse_bitstrings else bitstring
+        bits = tuple(int(bit) for bit in ordered)
+        values = np.asarray(bits, dtype=int)
+        is_feasible = feasible(bits, u.n, k)
+        measurements.append({
+            "bitstring": bitstring,
+            "count": float(raw_count),
+            "energy": energy(bits, q, constant),
+            "feasible": is_feasible,
+            "long": [u.tickers[i] for i in range(u.n) if values[i]],
+            "short": [u.tickers[i] for i in range(u.n) if values[u.n + i]],
+            "net_carbon": float(u.carbon @ (values[:u.n] - values[u.n:])),
+        })
+    total = sum(item["count"] for item in measurements)
+    if total <= 0:
+        raise ValueError("Measurement counts must contain a positive total")
+    for item in measurements:
+        item["probability"] = item["count"] / total
+    ranked = measurements
+    ranked.sort(key=lambda item: (not item["feasible"], item["energy"]))
+    feasible_results = [item for item in ranked if item["feasible"]]
+    return {
+        "total_shots": int(total) if total.is_integer() else total,
+        "distinct_bitstrings": len(ranked),
+        "feasible_shots": sum(item["count"] for item in feasible_results),
+        "feasible_probability": sum(item["probability"] for item in feasible_results),
+        "best_feasible": feasible_results[0] if feasible_results else None,
+        "top_feasible": feasible_results[:10],
+        "top_measured": sorted(ranked, key=lambda item: item["count"], reverse=True)[:10],
+    }
+
+
+def save_dashboard_result(counts, u, q, constant, k, source, reverse_bitstrings=False):
+    result = summarize_counts(counts, u, q, constant, k, reverse_bitstrings)
+    result["source"] = source
+    RESULT_PATH.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    return result
+
+
 def qubo_to_ising(q, constant=0.0):
     q = (np.asarray(q, dtype=float) + np.asarray(q, dtype=float).T) / 2
     ones = np.ones(q.shape[0])
@@ -220,6 +266,9 @@ def run_qaoa(q, constant, u, k, shots, steps):
             lambda: QuantumArray(QuantumVariable(u.n), shape=(2,)), depth=1, mes_kwargs={"shots": shots}, max_iter=max(steps, 4)
         )
     counts = {key(name): float(count) for name, count in result.items()}
+    save_dashboard_result(
+        counts, u, q, constant, k, f"YAHOO / LOCAL QRISP / {shots} SHOTS"
+    )
     valid = [(energy(tuple(map(int, name)), q, constant), name, count) for name, count in counts.items() if feasible(tuple(map(int, name)), u.n, k)]
     LOGGER.info("QAOA measured %d states; feasible probability=%.3f", len(counts), sum(item[2] for item in valid))
     if valid:
@@ -311,6 +360,11 @@ def run_resonance(args):
         counts = backend.run(bound, shots=args.shots).result().get_counts()
     output_path = DATA_DIR / "resonance_counts.json"
     output_path.write_text(json.dumps(counts, indent=2) + "\n", encoding="utf-8")
+    save_dashboard_result(
+        counts, universe, q, constant, args.k,
+        f"YAHOO / IQM GARNET / {args.shots} SHOTS",
+        reverse_bitstrings=True,
+    )
     LOGGER.info("Saved hardware counts to %s", output_path)
 
 
