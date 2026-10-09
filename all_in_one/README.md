@@ -8,7 +8,7 @@ From this folder:
 python -m venv .venv
 source .venv/bin/activate                 # macOS/Linux
 # .venv\Scripts\Activate.ps1             # Windows PowerShell
-python -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 python qfhackathon.py download --start 2018-01-01
 python qfhackathon.py classical --n 5 --k 2
 python qfhackathon.py local --n 5 --k 2 --shots 256
